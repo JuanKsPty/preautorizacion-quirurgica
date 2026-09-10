@@ -1,0 +1,34 @@
+[project]
+name = "api"
+version = "1.0.0"
+description = "API del proyecto, hecha con FastAPI"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "sqlmodel>=0.0.42",
+    "psycopg[binary]>=3.3.5",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.13.0",
+    "pwdlib[argon2]>=0.3.1",
+    "anthropic>=1.3.0",
+    "alembic>=1.19.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "httpx>=0.28.1",
+    "ruff>=0.16.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

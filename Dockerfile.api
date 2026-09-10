@@ -1,0 +1,37 @@
+# Dos objetivos:
+#   target: dev   -> el codigo se monta como volumen y uvicorn recarga solo
+#   target: prod  -> el codigo se copia dentro de la imagen, sin dependencias de dev
+#
+# El entorno virtual vive en /opt/venv (fuera de /app) para que el volumen del
+# codigo no lo tape con el .venv del host, que esta compilado para otro sistema.
+
+FROM python:3.13-slim AS base
+
+COPY --from=ghcr.io/astral-sh/uv:0.11 /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY pyproject.toml uv.lock .python-version ./
+
+# ---------------------------------------------------------------- desarrollo
+FROM base AS dev
+# Con dependencias de desarrollo: permite  docker compose exec api pytest
+RUN uv sync --locked
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--reload", "--reload-dir", "app"]
+
+# ---------------------------------------------------------------- produccion
+FROM base AS prod
+RUN uv sync --locked --no-dev
+COPY app ./app
+COPY alembic ./alembic
+COPY alembic.ini ./
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

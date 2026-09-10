@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+#  PRODUCCION / DEMO DESPLEGADA: el frontend se compila y lo sirve nginx,
+#  que ademas proxea /api hacia el contenedor de la API.
+#
+#      pnpm run docker:prod     ->  http://localhost:8080
+#
+#  Para desarrollar usa docker-compose.yml (pnpm dev), que trae hot reload.
+# ---------------------------------------------------------------------------
+name: preautorizacion-quirurgica
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+      target: prod
+    image: preautorizacion-quirurgica-api-prod
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-app}
+      JWT_SECRET: ${JWT_SECRET:-cambia-esto-por-openssl-rand-hex-32}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      APP_ENV: ${APP_ENV:-produccion}
+      AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: prod
+    image: preautorizacion-quirurgica-web-prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '8080:80'
+
+volumes:
+  postgres-data:

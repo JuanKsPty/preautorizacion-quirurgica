@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm stop)",
+      "Bash(pnpm test)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm --filter web:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose up:*)",
+      "Bash(docker compose stop:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose exec:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker compose config:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)",
+      "Bash(uv add:*)",
+      "Bash(curl -s http://localhost:8000/api/:*)",
+      "Bash(curl -s http://127.0.0.1:8000/api/:*)",
+      "Bash(curl -s http://localhost:5173/api/:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}

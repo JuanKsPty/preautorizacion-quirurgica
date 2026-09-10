@@ -1,0 +1,42 @@
+# Corre en cada push y PR. No necesita servicios: la API se prueba contra
+# SQLite en memoria, asi que el CI es rapido y no depende de Docker.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    name: Frontend (lint, tipos, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint:web
+      - run: pnpm run typecheck
+      - run: pnpm run test:web
+      - run: pnpm run build
+
+  api:
+    name: API (lint, formato, tests)
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./ci.db
+      JWT_SECRET: solo-para-ci-no-es-un-secreto-real
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv no publica tag flotante de major: hay que fijar la version.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --directory api --locked
+      - run: uv run --directory api ruff check .
+      - run: uv run --directory api ruff format --check .
+      - run: uv run --directory api pytest

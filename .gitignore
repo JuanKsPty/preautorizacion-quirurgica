@@ -1,0 +1,32 @@
+# ---- Secretos: NUNCA subir ----
+.env
+.env.local
+*.pem
+*.key
+
+# ---- Node ----
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+.pnpm-store
+
+# ---- Python ----
+.venv
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- Base de datos local ----
+*.db
+*.sqlite3
+
+# ---- Editores / OS ----
+.DS_Store
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json

@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+uv.lock
+web/dist
+web/src/components/ui
+api/.venv

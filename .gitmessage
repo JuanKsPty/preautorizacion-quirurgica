@@ -1,0 +1,9 @@
+
+
+# ── Formato: <tipo>(<alcance>): <resumen en imperativo>
+#    tipos: feat | fix | docs | style | refactor | test | chore
+#
+# ── Si el cambio se hizo con asistencia de IA, deja el trailer al final para
+#    que el historial lo refleje:
+#
+#    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
