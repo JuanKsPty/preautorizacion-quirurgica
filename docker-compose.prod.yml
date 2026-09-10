@@ -26,16 +26,22 @@ services:
 
   api:
     build:
-      context: ./api
+      context: .
+      dockerfile: Dockerfile.api
       target: prod
     image: preautorizacion-quirurgica-api-prod
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-app}
-      JWT_SECRET: ${JWT_SECRET:-cambia-esto-por-openssl-rand-hex-32}
-      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-1440}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      ANTHROPIC_EFFORT: ${ANTHROPIC_EFFORT:-medium}
+      ANTHROPIC_MAX_TOKENS: ${ANTHROPIC_MAX_TOKENS:-8192}
+      NOTION_TOKEN: ${NOTION_TOKEN:-}
+      NOTION_DB_POLIZAS: ${NOTION_DB_POLIZAS:-}
+      NOTION_DB_INFORMES: ${NOTION_DB_INFORMES:-}
+      NOTION_DB_PROCEDIMIENTOS: ${NOTION_DB_PROCEDIMIENTOS:-}
+      NOTION_DB_PREAUTORIZACIONES: ${NOTION_DB_PREAUTORIZACIONES:-}
       APP_ENV: ${APP_ENV:-produccion}
       AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
@@ -46,8 +52,10 @@ services:
   web:
     build:
       context: .
-      dockerfile: web/Dockerfile
+      dockerfile: Dockerfile.web
       target: prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
     image: preautorizacion-quirurgica-web-prod
     restart: unless-stopped
     depends_on:

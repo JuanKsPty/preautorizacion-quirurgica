@@ -1,26 +1,14 @@
 from app.models.base import RespuestaConFecha, ahora_utc
-from app.models.item import Item, ItemBase, ItemCreate, ItemPublic, ItemUpdate
-from app.models.user import (
-    Token,
-    User,
-    UserBase,
-    UserCreate,
-    UserLogin,
-    UserPublic,
+from app.models.preautorizacion import (
+    Preautorizacion,
+    PreautorizacionBase,
+    PreautorizacionPublic,
 )
 
 __all__ = [
-    "Item",
-    "ItemBase",
-    "ItemCreate",
-    "ItemPublic",
-    "ItemUpdate",
+    "Preautorizacion",
+    "PreautorizacionBase",
+    "PreautorizacionPublic",
     "RespuestaConFecha",
-    "Token",
-    "User",
-    "UserBase",
-    "UserCreate",
-    "UserLogin",
-    "UserPublic",
     "ahora_utc",
 ]

@@ -1,113 +1,119 @@
 # Guia del proyecto para Claude Code
 
-Plantilla de hackathon: **React + Vite (TypeScript)** en `web/` y **FastAPI
+Agente de pre-autorizacion quirurgica: **React + Vite (TypeScript)** en `web/` y **FastAPI
 (Python 3.13)** en `api/`. Un solo `.env` en la raiz.
 
-**La aplicacion corre en contenedores** (`docker compose`: `web`, `api`, `db`) con
-el codigo montado como volumen, asi que al guardar un archivo se recarga solo.
-**Las herramientas corren en la maquina** (tests, linter, tipos) y no necesitan
-Docker.
+**La aplicacion corre en contenedores** (`docker compose`: `web`, `api`, `db`) con el codigo
+montado como volumen, asi que al guardar un archivo se recarga solo. **Las herramientas corren en
+la maquina** (tests, linter, tipos) y no necesitan Docker.
 
 ## Comandos
 
 ```bash
-pnpm run setup           # .env + dependencias + contenedores + datos demo
+pnpm run setup           # .env + dependencias + contenedores
 pnpm dev                 # docker compose up: web :5173, api :8000 (docs /api/docs)
 pnpm run dev:build       # reconstruye las imagenes (tras cambiar dependencias)
 pnpm stop                # apaga los contenedores
 pnpm run logs            # logs en vivo (logs:api, logs:web)
-pnpm run seed            # datos de demostracion (idempotente)
 
 pnpm test                # pytest + vitest, en la maquina
 pnpm lint                # oxlint (web) + ruff (api)
 pnpm run typecheck       # tsc -b
 pnpm run check:secrets   # busca credenciales filtradas
+
+uv run --directory api python scripts/sembrar_notion.py    # siembra Notion
 ```
 
-**Donde se ejecuta cada cosa**
+- Comandos de la aplicacion -> dentro del contenedor: `docker compose exec api <comando>`.
+- Comandos de calidad -> en la maquina: `uv run --directory api ...` y `pnpm --filter web ...`.
+  El `--directory` importa: sin el, `app.main` no se resuelve.
 
-- Comandos de la aplicacion -> dentro del contenedor:
-  `docker compose exec api <comando>` (hay atajos: `seed`, `db:revision`,
-  `db:migrate`, `shell:api`).
-- Comandos de calidad -> en la maquina: `uv run --directory api ...` y
-  `pnpm --filter web ...`. El `--directory` importa: sin el, `app.main` no se
-  resuelve.
-- Sin Docker: `pnpm run dev:host` (procesos locales) y `pnpm run seed:host`,
-  con `DATABASE_URL=sqlite:///./app.db` en el `.env`.
+## La frontera que ordena el diseno
+
+**`api/app/dominio/` decide los numeros.** Carencia, deducible, coaseguro y tope se calculan ahi,
+sin E/S y sin FastAPI, y se le exponen al modelo como herramientas. **El modelo lee prosa clinica,
+mapea al catalogo, aporta juicio medico y redacta.** No calcula y no elige el veredicto.
+
+Tres cosas que se hacen cumplir en codigo, no en el prompt, y que **no se relajan**:
+
+1. `emitir_dictamen` rechaza un veredicto distinto al que calculo `evaluar_expediente`.
+2. `emitir_dictamen` rechaza cualquier cifra en balboas que no haya devuelto una herramienta
+   (`EstadoEjecucion.cifras_permitidas`).
+3. El juicio clinico del modelo solo puede BAJAR en la escala: `informe_sustenta_procedimiento:
+   false` produce `REVISION_MEDICA`, jamas `RECHAZADO`. Un agente automatico no niega una cirugia.
 
 ## Donde va cada cosa
 
 | Necesitas... | Archivo |
 | --- | --- |
+| Una regla de negocio nueva | `api/app/dominio/reglas.py` (+ prueba en `api/tests/test_reglas.py`) |
+| Cambiar la precedencia del veredicto | `api/app/dominio/veredicto.py` (+ `test_veredicto.py`) |
+| Una herramienta nueva del agente | `api/app/agente/herramientas.py`: definicion en `HERRAMIENTAS` y rama en `ejecutar_herramienta` |
 | Un endpoint nuevo | `api/app/api/routes/<tema>.py` + registrarlo en `api/app/api/router.py` |
-| Una tabla nueva | `api/app/models/<entidad>.py` (tabla + `*Create` + `*Update` + `*Public` juntos) + exportarla en `api/app/models/__init__.py` |
-| Una pantalla nueva | `web/src/pages/<Nombre>Page.tsx` + ruta en `web/src/App.tsx` |
+| Una tabla nueva | `api/app/models/<entidad>.py` (tabla + `*Public` juntos) + exportarla en `api/app/models/__init__.py` |
+| Una columna nueva de Notion | `api/app/repositorios/notion.py` (extractor) **y** `scripts/sembrar_notion.py` (escritura) |
+| Una pantalla nueva | `web/src/pages/<Nombre>Page.tsx` + ruta en `web/src/App.tsx` + enlace en `Navbar.tsx` |
 | Llamar a la API | Un modulo en `web/src/services/`, nunca `fetch` dentro de un componente |
 | Un tipo de la API | `web/src/types/api.ts` (DTO en snake_case + modelo de dominio en camelCase) |
-| Una variable de entorno | `.env.example` **y** `api/app/core/config.py` (o `web/src/lib/env.ts` si es `VITE_*`) |
+| Una variable de entorno | `.env.example` **y** `api/app/core/config.py` (o `web/src/lib/env.ts` si es `VITE_*`) **y** ambos compose |
 | Un componente de UI | `pnpm dlx shadcn@latest add <componente>` (no escribirlo a mano) |
 
 ## Convenciones
 
 - **La capa `services/` es la unica que habla con la API.** Usa `apiFetch` de
-  `web/src/services/http.ts`: ya pone la base URL, el token y normaliza los
-  errores a `ApiError` (`status` + `message`).
-- **DTO -> dominio en el service.** La API devuelve snake_case y fechas como
-  string; la UI consume camelCase y `Date`. La conversion vive en el service
-  (mira `itemsService.ts` como plantilla).
-- **Formularios** con `react-hook-form` + `zod` (`zodResolver`). Zod v4: usa
-  `z.email('mensaje')`, no `z.string().email()`.
-- **Datos del servidor** con TanStack Query; estado local con `useState`. No
-  metas datos de la API en un store global.
-- **Textos de cara al usuario en espanol**, incluidos los mensajes de error de la
-  API: son parte de la interfaz, no un detalle tecnico.
-- **Python**: nombres de funciones y variables en espanol cuando son del dominio,
-  en ingles cuando son de FastAPI/SQLModel. `ruff` manda (linea de 100).
-- **TypeScript estricto**: `verbatimModuleSyntax` obliga a `import type` para los
-  tipos, y `erasableSyntaxOnly` prohibe `enum` y propiedades en el constructor.
-- El alias `@/` apunta a `web/src`. Si algun dia el CLI de shadcn crea una carpeta
-  literal `@/`, es porque falta `paths` en `web/tsconfig.json`.
-- `web/src/components/ui/` es codigo generado por shadcn: no se edita ni se lintea.
+  `web/src/services/http.ts`: ya pone la base URL y normaliza los errores a `ApiError`.
+- **DTO -> dominio en el service.** La API devuelve snake_case y fechas como string; la UI consume
+  camelCase y `Date`. La conversion vive en el service (`catalogoService.ts` como plantilla). El
+  `Dictamen` es la excepcion: viaja en snake_case y se consume tal cual, porque es un documento.
+- **Datos del servidor** con TanStack Query; estado local con `useState`.
+- **Textos de cara al usuario en espanol**, incluidos los mensajes de error de la API.
+- **Python**: nombres de dominio en espanol, en ingles cuando son de FastAPI/SQLModel. `ruff`
+  manda (linea de 100).
+- **TypeScript estricto**: `verbatimModuleSyntax` obliga a `import type`, y `erasableSyntaxOnly`
+  prohibe `enum` y propiedades en el constructor.
+- El alias `@/` apunta a `web/src`. `web/src/components/ui/` es codigo de shadcn: no se edita ni se
+  lintea.
+- **El color nunca es el unico canal.** Cada veredicto lleva icono y etiqueta de texto ademas de
+  color. Los tokens estan en `web/src/index.css` y se consumen como `bg-exito-fondo text-exito`.
 
 ## Decisiones ya tomadas (no re-discutir)
 
-- **React Router 8**, no TanStack Router. Se evaluo: TanStack gana en tipado y
-  search params, pero mete un plugin de Vite y un `routeTree.gen.ts` generado en
-  el camino del build, sin ganar nada que este proyecto necesite. En v8 **no existe
-  `react-router-dom`**: se importa todo de `react-router`.
-- **JWT en `localStorage`**, no cookie httpOnly. Mas rapido de montar; el tradeoff
-  (XSS) esta documentado en `http.ts` y en el README.
-- **Argon2** (`pwdlib`) para las contrasenas, no bcrypt.
-- **CORS como string** en `Settings`, no `list[str]`: pydantic-settings intenta
-  parsear las listas como JSON y `"a,b"` haria fallar el arranque.
-- **El arranque es `docker compose up`**, no procesos locales: un solo comando
-  levanta frontend, API y base, y nadie tiene que instalar PostgreSQL. El compose
-  de desarrollo monta el codigo y recarga en caliente; `docker-compose.prod.yml`
-  es la version compilada tras nginx.
-- **El entorno de Python del contenedor vive en `/opt/venv`**, fuera de `/app`:
-  si estuviera en `/app/.venv`, el volumen del codigo lo taparia con el `.venv`
-  del host, que esta compilado para macOS.
-- **`postgres:18+` monta el volumen en `/var/lib/postgresql`**, no en
-  `.../postgresql/data` como las versiones anteriores; con el path viejo el
-  contenedor se niega a arrancar.
-- **El `DATABASE_URL` del `.env` es el del host** (`127.0.0.1:5432`, para Alembic
-  y los comandos locales); dentro de compose la variable se sobreescribe con
-  `db:5432`, que es como se llama la base en la red de contenedores.
-- **`AUTO_CREATE_TABLES=true`** crea las tablas al arrancar. Cuando el esquema
-  tenga que cambiar sin perder datos: pon el flag en `false` y usa
-  `pnpm run db:revision "..."` + `pnpm run db:migrate`. No uses las dos cosas a la vez.
-- **Las pruebas de la API corren sobre SQLite en memoria** (`tests/conftest.py`),
-  para que la suite no dependa de Docker.
-- El proxy de Vite apunta a `127.0.0.1:8000`, no a `localhost`: con `localhost`
-  Node puede resolver `::1` y uvicorn escucha en IPv4.
-- Los headers `X-Accel-Buffering: no` y `proxy_buffering off` del chat no se
-  quitan: sin ellos nginx bufferea el SSE y el streaming se ve congelado.
+- **El dinero se calcula en centavos enteros** (`dominio/financiero.py`). Con `float` el resultado
+  sale bien al centavo pero el invariante `paciente + aseguradora == cotizado` deja de
+  comprobarse: 8960.21 + 5540.12 da 14500.329999999998.
+- **El expediente se lee UNA VEZ antes del bucle** del agente. Las herramientas son funciones
+  puras sobre ese snapshot: cero red mientras el modelo trabaja. Asi un limite de peticiones de
+  Notion no puede reventar una evaluacion a mitad de una demostracion.
+- **Bucle manual, no `tool_runner`**: hace falta un evento SSE por cada delta de razonamiento y por
+  cada herramienta, y poder cambiar `tool_choice` a mitad de la ejecucion para escalar. Ademas el
+  runner es beta.
+- **`AsyncClient` de Notion, no `Client`.** El cliente sincrono es httpx bloqueante y llamarlo
+  dentro del generador que transmite el SSE congelaria el event loop.
+- **Desde la version 2025-09-03 de la API de Notion, `databases.query` NO EXISTE.** Las consultas
+  van a `data_sources.query`; el `data_source_id` sale de `databases.retrieve(...)` y se cachea.
+- **El relato clinico va en el CUERPO de la pagina de Notion**, no en una columna: `rich_text`
+  tope a 2000 caracteres y un informe se acerca demasiado.
+- **`web/nginx.conf` pone el upstream de `/api` en una VARIABLE.** Con un nombre literal, nginx lo
+  resuelve al arrancar y sale con "host not found in upstream" si el servicio no existe — el
+  contenedor entraria en bucle de reinicio. En Dokploy ese bloque no se usa: son dos aplicaciones
+  separadas y Traefik enruta `/api` directo a la API.
+- **Los dos Dockerfiles viven en la raiz** (`Dockerfile.api`, `Dockerfile.web`) y los dos usan la
+  raiz como contexto de build. Un solo contexto, sin asimetrias.
+- **`X-Accel-Buffering: no` y `proxy_buffering off` no se quitan**, y no se anade `GZipMiddleware`
+  ni un middleware `compress` en Traefik: cualquiera de los tres congela el SSE.
+- **`--forwarded-allow-ips '*'`** en el `CMD` de produccion: sin el, uvicorn descarta las cabeceras
+  `X-Forwarded-*` de Traefik y las redirecciones salen como `http://`.
+- **`AUTO_CREATE_TABLES=true`**, sin Alembic. La bitacora es append-only y no hay nada que migrar;
+  `alembic/versions/` esta vacio, asi que `upgrade head` no crearia ninguna tabla.
+- **Las pruebas corren sobre SQLite en memoria** (`tests/conftest.py`), sin Docker. El agente se
+  prueba con un cliente de Anthropic falso (`tests/test_agente.py`).
+- **No hay autenticacion.** Un muro de login solo estorbaria a quien abre el enlace publico a
+  evaluar la demostracion.
 
 ## Al terminar una tarea
 
-1. `pnpm test` y `pnpm lint` en verde.
-2. Si tocaste la API, comprueba el endpoint en `/api/docs` o con `curl`.
-3. Si tocaste el modelo de datos, `pnpm run seed` sigue funcionando.
-   Si tocaste dependencias, `pnpm run dev:build` reconstruye las imagenes.
-4. Los commits generados con asistencia de IA llevan el trailer
-   `Co-Authored-By: ...` para que el historial lo refleje.
+1. `pnpm test`, `pnpm lint` y `pnpm run typecheck` en verde.
+2. Si tocaste las reglas, `api/tests/test_escenarios.py` sigue dando los ocho veredictos.
+3. Si tocaste la API, comprueba el endpoint en `/api/docs` o con `curl`.
+4. Si tocaste dependencias, **commitea los lockfiles**: `uv.lock` y `pnpm-lock.yaml`. Sin eso el
+   build de Docker falla con `--frozen-lockfile` / `uv sync --locked`.

@@ -1,78 +1,70 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiFetch, setUnauthorizedHandler, tokenStore } from './http';
+import { ApiError, apiFetch } from './http';
 
-function respuesta(body: unknown, status = 200): Response {
-  const texto = typeof body === 'string' ? body : JSON.stringify(body);
-  return new Response(texto, { status, headers: { 'Content-Type': 'application/json' } });
+function respuesta(cuerpo: unknown, init: ResponseInit = {}) {
+  return new Response(typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  });
 }
 
 describe('apiFetch', () => {
   beforeEach(() => {
-    tokenStore.clear();
     vi.stubGlobal('fetch', vi.fn());
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    setUnauthorizedHandler(null);
   });
 
   it('devuelve el JSON cuando la respuesta es correcta', async () => {
-    vi.mocked(fetch).mockResolvedValue(respuesta({ status: 'ok' }));
-
-    await expect(apiFetch<{ status: string }>('/health', { auth: false })).resolves.toEqual({
-      status: 'ok',
-    });
-  });
-
-  it('agrega el header Authorization si hay token guardado', async () => {
-    tokenStore.set('token-123');
-    vi.mocked(fetch).mockResolvedValue(respuesta({ ok: true }));
-
-    await apiFetch('/items');
-
-    const [, init] = vi.mocked(fetch).mock.calls[0];
-    const headers = init?.headers as Record<string, string> | undefined;
-    expect(headers?.Authorization).toBe('Bearer token-123');
+    vi.mocked(fetch).mockResolvedValue(respuesta({ veredicto: 'APROBADO' }));
+    await expect(apiFetch('/preautorizaciones')).resolves.toEqual({ veredicto: 'APROBADO' });
   });
 
   it('convierte el detail de FastAPI en el mensaje del error', async () => {
-    vi.mocked(fetch).mockResolvedValue(respuesta({ detail: 'Credenciales invalidas' }, 401));
-
-    await expect(apiFetch('/auth/login', { auth: false })).rejects.toThrowError(
-      'Credenciales invalidas'
+    vi.mocked(fetch).mockResolvedValue(
+      respuesta({ detail: 'No existe el informe INF-0000' }, { status: 404 })
     );
+    await expect(apiFetch('/informes/INF-0000')).rejects.toThrow('No existe el informe INF-0000');
   });
 
   it('aplana los errores de validacion 422 en un solo mensaje', async () => {
     vi.mocked(fetch).mockResolvedValue(
       respuesta(
-        { detail: [{ loc: ['body', 'title'], msg: 'Field required', type: 'missing' }] },
-        422
+        {
+          detail: [
+            { loc: ['body', 'codigo_informe'], msg: 'String should have at least 3 characters' },
+          ],
+        },
+        { status: 422 }
       )
     );
-
-    await expect(apiFetch('/items', { method: 'POST', body: {} })).rejects.toThrowError(
-      'title: Field required'
+    await expect(apiFetch('/preautorizaciones/reglas')).rejects.toThrow(
+      /codigo_informe: String should have at least 3 characters/
     );
-  });
-
-  it('limpia la sesion y avisa cuando la API responde 401', async () => {
-    tokenStore.set('token-viejo');
-    const alExpirar = vi.fn();
-    setUnauthorizedHandler(alExpirar);
-    vi.mocked(fetch).mockResolvedValue(respuesta({ detail: 'Token expirado' }, 401));
-
-    await expect(apiFetch('/auth/me')).rejects.toBeInstanceOf(ApiError);
-    expect(tokenStore.get()).toBeNull();
-    expect(alExpirar).toHaveBeenCalledOnce();
   });
 
   it('explica el fallo de red en lugar de propagar el error crudo de fetch', async () => {
     vi.mocked(fetch).mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(apiFetch('/health')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 0,
+    });
+  });
 
-    await expect(apiFetch('/health', { auth: false })).rejects.toThrowError(
-      /No se pudo conectar con la API/
+  it('no revienta cuando la API responde 204 sin cuerpo', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(apiFetch('/algo')).resolves.toBeUndefined();
+  });
+
+  it('expone ApiError con el status para que la UI pueda decidir', async () => {
+    vi.mocked(fetch).mockResolvedValue(respuesta({ detail: 'Falta la clave' }, { status: 503 }));
+    const error: unknown = await apiFetch('/preautorizaciones/evaluar').catch(
+      (e: unknown) => e
     );
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(503);
   });
 });

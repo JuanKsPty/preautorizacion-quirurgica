@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import App from '@/App';
 import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider } from '@/components/AuthProvider';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -22,10 +21,8 @@ createRoot(contenedor).render(
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <AuthProvider>
-            <App />
-            <Toaster position="top-right" />
-          </AuthProvider>
+          <App />
+          <Toaster position="top-right" />
         </BrowserRouter>
       </QueryClientProvider>
     </ThemeProvider>

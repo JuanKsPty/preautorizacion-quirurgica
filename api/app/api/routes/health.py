@@ -14,14 +14,19 @@ class HealthResponse(BaseModel):
     version: str
     environment: str
     database: str
-    ai_enabled: bool
+    ia_habilitada: bool
+    modelo: str
+    esfuerzo: str
+    origen_datos: str
+    notion_habilitado: bool
 
 
 @router.get("/health", response_model=HealthResponse, summary="Estado de la API")
 def health(session: SessionDep) -> HealthResponse:
     """
-    Lo consulta la pantalla de inicio del frontend para demostrar en vivo que
-    React y FastAPI se estan hablando.
+    Lo consulta el panel del frontend y sirve para verificar la configuracion
+    del despliegue desde fuera, sin entrar al servidor: dice si la base responde,
+    si hay clave de IA y si esta leyendo de Notion o de los datos de demostracion.
     """
     try:
         session.exec(text("SELECT 1"))  # type: ignore[call-overload]
@@ -37,5 +42,9 @@ def health(session: SessionDep) -> HealthResponse:
         version=settings.app_version,
         environment=settings.app_env,
         database=base_de_datos,
-        ai_enabled=settings.ai_enabled,
+        ia_habilitada=settings.ia_habilitada,
+        modelo=settings.anthropic_model,
+        esfuerzo=settings.anthropic_effort,
+        origen_datos=settings.origen_datos,
+        notion_habilitado=settings.notion_habilitado,
     )

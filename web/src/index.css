@@ -6,6 +6,19 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    /* Los cinco veredictos. El color nunca es el unico canal: cada veredicto
+       lleva ademas icono y etiqueta de texto, para que se lea igual con
+       daltonismo o en una proyeccion mal calibrada. */
+    --color-exito: var(--exito);
+    --color-exito-fondo: var(--exito-fondo);
+    --color-alerta: var(--alerta);
+    --color-alerta-fondo: var(--alerta-fondo);
+    --color-info: var(--info);
+    --color-info-fondo: var(--info-fondo);
+    --color-revision: var(--revision);
+    --color-revision-fondo: var(--revision-fondo);
+    --color-rechazo: var(--rechazo);
+    --color-rechazo-fondo: var(--rechazo-fondo);
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
@@ -49,6 +62,16 @@
 }
 
 :root {
+    --exito: oklch(0.45 0.13 155);
+    --exito-fondo: oklch(0.955 0.028 155);
+    --alerta: oklch(0.47 0.11 75);
+    --alerta-fondo: oklch(0.96 0.038 85);
+    --info: oklch(0.48 0.14 250);
+    --info-fondo: oklch(0.955 0.028 250);
+    --revision: oklch(0.47 0.15 300);
+    --revision-fondo: oklch(0.955 0.03 300);
+    --rechazo: oklch(0.5 0.18 25);
+    --rechazo-fondo: oklch(0.955 0.03 25);
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -84,6 +107,16 @@
 }
 
 .dark {
+    --exito: oklch(0.8 0.14 155);
+    --exito-fondo: oklch(0.28 0.05 155);
+    --alerta: oklch(0.84 0.13 85);
+    --alerta-fondo: oklch(0.29 0.05 85);
+    --info: oklch(0.8 0.12 250);
+    --info-fondo: oklch(0.28 0.05 250);
+    --revision: oklch(0.8 0.13 300);
+    --revision-fondo: oklch(0.28 0.05 300);
+    --rechazo: oklch(0.78 0.15 25);
+    --rechazo-fondo: oklch(0.29 0.06 25);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);

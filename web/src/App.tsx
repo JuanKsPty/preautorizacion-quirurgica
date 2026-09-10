@@ -1,15 +1,19 @@
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { AppShell } from '@/components/layout/AppShell';
-import { HomePage } from '@/pages/HomePage';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PanelPage } from '@/pages/PanelPage';
 
-// Solo la pantalla de inicio viaja en el bundle inicial; las demas se cargan
-// cuando se visitan. Mantiene el arranque ligero al abrir la demo.
-const LoginPage = lazy(async () => ({ default: (await import('@/pages/LoginPage')).LoginPage }));
-const ItemsPage = lazy(async () => ({ default: (await import('@/pages/ItemsPage')).ItemsPage }));
-const ChatPage = lazy(async () => ({ default: (await import('@/pages/ChatPage')).ChatPage }));
+// Solo el panel viaja en el bundle inicial; las demas se cargan al visitarlas.
+const EvaluarPage = lazy(async () => ({
+  default: (await import('@/pages/EvaluarPage')).EvaluarPage,
+}));
+const CasosPage = lazy(async () => ({
+  default: (await import('@/pages/CasosPage')).CasosPage,
+}));
+const ReglasPage = lazy(async () => ({
+  default: (await import('@/pages/ReglasPage')).ReglasPage,
+}));
 const NotFoundPage = lazy(async () => ({
   default: (await import('@/pages/NotFoundPage')).NotFoundPage,
 }));
@@ -28,15 +32,10 @@ export default function App() {
     <Suspense fallback={<Cargando />}>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<HomePage />} />
-          <Route path="login" element={<LoginPage />} />
-
-          {/* Todo lo que cuelgue de aqui exige sesion. */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="items" element={<ItemsPage />} />
-            <Route path="chat" element={<ChatPage />} />
-          </Route>
-
+          <Route index element={<PanelPage />} />
+          <Route path="evaluar" element={<EvaluarPage />} />
+          <Route path="casos" element={<CasosPage />} />
+          <Route path="reglas" element={<ReglasPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

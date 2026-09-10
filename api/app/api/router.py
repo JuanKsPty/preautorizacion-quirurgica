@@ -1,9 +1,9 @@
 from fastapi import APIRouter
 
-from app.api.routes import auth, chat, health, items
+from app.api.routes import catalogo, diagnostico, health, preautorizaciones
 
 api_router = APIRouter()
 api_router.include_router(health.router)
-api_router.include_router(auth.router)
-api_router.include_router(items.router)
-api_router.include_router(chat.router)
+api_router.include_router(diagnostico.router)
+api_router.include_router(catalogo.router)
+api_router.include_router(preautorizaciones.router)

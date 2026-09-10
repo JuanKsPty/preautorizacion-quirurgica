@@ -29,7 +29,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    summary="API del proyecto. Todo cuelga de /api.",
+    summary=(
+        "Agente de pre-autorización quirúrgica: recibe el informe médico del "
+        "hospital y la póliza del asegurado, y emite la resolución. Todo cuelga de /api."
+    ),
     lifespan=lifespan,
     # Bajo /api para que el proxy de Vite y el de nginx las sirvan sin reglas extra.
     docs_url="/api/docs",

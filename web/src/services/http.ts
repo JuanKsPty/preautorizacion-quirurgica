@@ -1,37 +1,5 @@
 import { env } from '@/lib/env';
 
-const TOKEN_KEY = 'hackathon.token';
-
-/**
- * Guardamos el JWT en localStorage: es lo mas rapido de montar y sobrevive al
- * refresco de la pagina. Tradeoff conocido: es vulnerable a XSS. La alternativa
- * (cookie httpOnly + SameSite) exige manejar CSRF y es mas trabajo del que un
- * prototipo justifica. Cambiala si el proyecto maneja datos sensibles.
- */
-export const tokenStore = {
-  get: (): string | null => {
-    try {
-      return localStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  },
-  set: (token: string): void => {
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-    } catch {
-      /* modo privado o storage bloqueado: seguimos en memoria */
-    }
-  },
-  clear: (): void => {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* nada que limpiar */
-    }
-  },
-};
-
 /** Error normalizado de la API: siempre trae status y un mensaje legible. */
 export class ApiError extends Error {
   status: number;
@@ -45,18 +13,9 @@ export class ApiError extends Error {
   }
 }
 
-let unauthorizedHandler: (() => void) | null = null;
-
-/** El AuthProvider registra aqui que hacer cuando la API responde 401. */
-export function setUnauthorizedHandler(handler: (() => void) | null): void {
-  unauthorizedHandler = handler;
-}
-
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   /** Se serializa a JSON automaticamente. */
   body?: unknown;
-  /** false para endpoints publicos (login, register, health). */
-  auth?: boolean;
 }
 
 /**
@@ -88,10 +47,9 @@ function extractMessage(payload: unknown, status: number): string {
   return `La API respondio con el codigo ${status}`;
 }
 
-/** Cliente HTTP unico de la app: base URL, JSON, token y errores normalizados. */
+/** Cliente HTTP unico de la app: base URL, JSON y errores normalizados. */
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, auth = true, headers, ...rest } = options;
-  const token = auth ? tokenStore.get() : null;
+  const { body, headers, ...rest } = options;
 
   let response: Response;
   try {
@@ -99,19 +57,13 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       ...rest,
       headers: {
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
     // fetch solo rechaza por fallo de red o CORS, nunca por status HTTP.
-    throw new ApiError(0, 'No se pudo conectar con la API. Esta corriendo en el puerto 8000?', error);
-  }
-
-  if (response.status === 401 && auth) {
-    tokenStore.clear();
-    unauthorizedHandler?.();
+    throw new ApiError(0, 'No se pudo conectar con la API.', error);
   }
 
   if (response.status === 204) return undefined as T;
@@ -133,7 +85,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   return payload as T;
 }
 
-/** URL absoluta de un endpoint, para enlaces (por ejemplo /api/docs). */
+/** URL absoluta de un endpoint, para enlaces y para el stream de SSE. */
 export function apiUrl(path = ''): string {
   return `${env.apiUrl}${path}`;
 }

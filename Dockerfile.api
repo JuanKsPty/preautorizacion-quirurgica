@@ -1,3 +1,9 @@
+# API (FastAPI). El CONTEXTO DE BUILD ES LA RAIZ DEL REPO, igual que el de la
+# web, para que las dos aplicaciones de Dokploy usen dockerContextPath "." y no
+# haya dos contextos distintos que mantener.
+#
+#   docker build -f Dockerfile.api --target prod .
+#
 # Dos objetivos:
 #   target: dev   -> el codigo se monta como volumen y uvicorn recarga solo
 #   target: prod  -> el codigo se copia dentro de la imagen, sin dependencias de dev
@@ -17,7 +23,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY pyproject.toml uv.lock .python-version ./
+COPY api/pyproject.toml api/uv.lock api/.python-version ./
 
 # ---------------------------------------------------------------- desarrollo
 FROM base AS dev
@@ -30,8 +36,25 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
 # ---------------------------------------------------------------- produccion
 FROM base AS prod
 RUN uv sync --locked --no-dev
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./
+COPY api/app ./app
+COPY api/alembic ./alembic
+COPY api/alembic.ini ./
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+STOPSIGNAL SIGTERM
+
+# La sonda es deliberadamente tolerante: /api/health responde 200 aunque la base
+# este caida (devuelve "degraded"), asi un hipo de Postgres no reinicia el
+# contenedor en medio de una demostracion.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=5 \
+  CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"]
+
+# --forwarded-allow-ips: sin esto uvicorn solo confia en las cabeceras
+# X-Forwarded-* si vienen de 127.0.0.1, descarta las de Traefik y cualquier
+# redireccion sale como http:// — que el navegador bloquea por contenido mixto.
+# --timeout-graceful-shutdown por debajo de los 10 s de gracia de Docker: un
+# stream SSE abierto no puede retener un redespliegue hasta el SIGKILL.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--workers", "1", \
+     "--proxy-headers", "--forwarded-allow-ips", "*", \
+     "--timeout-graceful-shutdown", "8", \
+     "--timeout-keep-alive", "65"]

@@ -7,12 +7,13 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.db.session import get_session
 from app.main import app
+from app.repositorios.demo import RepositorioDemo
 
 
 @pytest.fixture(name="session")
 def session_fixture() -> Generator[Session]:
     """
-    SQLite en memoria, una base limpia por test. Asi la suite corre sin Docker
+    SQLite en memoria, una base limpia por prueba. Asi la suite corre sin Docker
     ni Postgres: util en el CI y para cualquiera que solo clone el repo.
     """
     engine = create_engine(
@@ -34,12 +35,6 @@ def client_fixture(session: Session) -> Generator[TestClient]:
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(name="auth")
-def auth_fixture(client: TestClient) -> dict[str, str]:
-    """Registra un usuario y devuelve el header Authorization listo para usar."""
-    respuesta = client.post(
-        "/api/auth/register",
-        json={"email": "tester@demo.com", "password": "password123", "full_name": "Tester"},
-    )
-    assert respuesta.status_code == 201, respuesta.text
-    return {"Authorization": f"Bearer {respuesta.json()['access_token']}"}
+@pytest.fixture(name="repositorio")
+def repositorio_fixture() -> RepositorioDemo:
+    return RepositorioDemo()
