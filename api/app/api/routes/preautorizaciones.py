@@ -219,9 +219,14 @@ async def evaluar_con_reglas(solicitud: SolicitudEvaluacion, session: SessionDep
     El mismo veredicto sin pasar por el modelo.
 
     El procedimiento se identifica con el emparejador determinista sobre el texto
-    del informe, en vez de con el mapeo semantico del modelo. Es menos fino —por
-    eso el agente existe— pero garantiza que el sistema resuelve aunque el
-    proveedor de IA no responda.
+    del informe, en vez de con el mapeo semantico del modelo.
+
+    LIMITE IMPORTANTE: por este camino no se detectan preexistencias. Descubrir
+    que el relato clinico situa un padecimiento ANTES del inicio de la poliza
+    exige leer y fechar prosa, y eso no lo hace una regla: es justamente el
+    trabajo del modelo. Por eso el informe INF-2026-0035 sale APROBADO aqui y
+    REVISION_MEDICA con el agente completo. No es una inconsistencia — es la
+    medida de lo que aporta la IA sobre el motor de reglas.
     """
     poliza, informe, catalogo = await _cargar_caso(solicitud)
 

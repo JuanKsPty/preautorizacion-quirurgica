@@ -119,7 +119,7 @@ aritmética difícil ya la hacen las herramientas, así que el modelo no necesit
 
 | Fallo | Qué pasa |
 | --- | --- |
-| No hay `ANTHROPIC_API_KEY` | `POST /api/preautorizaciones/reglas` sigue emitiendo el mismo veredicto con las mismas cifras, solo sin la redacción del modelo. |
+| No hay `ANTHROPIC_API_KEY` | `POST /api/preautorizaciones/reglas` sigue emitiendo el mismo veredicto con las mismas cifras, solo sin la redacción del modelo. Con una salvedad medible: por ese camino **no se detectan preexistencias**, porque eso exige leer y fechar prosa clínica. `INF-2026-0035` sale `APROBADO` sin IA y `REVISION_MEDICA` con el agente — esa diferencia es exactamente lo que aporta el modelo. |
 | Notion caído o token inválido | Cae a los datos de demostración locales. `GET /api/health` reporta `origen_datos`. |
 | El modelo nunca emite el dictamen | Se arma en Python desde las reglas ya calculadas, con plantilla. La demostración nunca termina sin veredicto. |
 | El modelo inventa una cifra o cambia el veredicto | La herramienta lo rechaza con el valor correcto y el modelo reintenta. |
