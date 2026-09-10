@@ -44,6 +44,58 @@ def obtener_cliente() -> anthropic.AsyncAnthropic:
     return _cliente
 
 
+# Parametros que un modelo o una version de API podria rechazar. Si el
+# proveedor devuelve un 400 nombrando uno de ellos, se reintenta sin los
+# opcionales antes de rendirse: es preferible un agente sin razonamiento
+# transmitido que ningun agente.
+OPCIONALES = ("thinking", "output_config", "effort", "cache_control", "display")
+
+
+def _parametro_no_soportado(error: anthropic.BadRequestError) -> bool:
+    mensaje = str(error).lower()
+    return any(clave in mensaje for clave in OPCIONALES)
+
+
+def _peticion(
+    estado: EstadoEjecucion,
+    mensajes: list[dict[str, Any]],
+    numero: int,
+    maximo: int,
+    compatibilidad: bool,
+) -> dict[str, Any]:
+    """Arma la peticion. En modo compatibilidad va sin los parametros opcionales."""
+    peticion: dict[str, Any] = {
+        "model": settings.anthropic_model,
+        "max_tokens": settings.anthropic_max_tokens,
+        "tools": HERRAMIENTAS,
+        "messages": mensajes,
+    }
+
+    if compatibilidad:
+        peticion["system"] = PROMPT_SISTEMA
+    else:
+        # El prompt va primero y cacheado: es el prefijo estable de cada vuelta.
+        peticion["system"] = [
+            {
+                "type": "text",
+                "text": PROMPT_SISTEMA,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        peticion["thinking"] = {"type": "adaptive", "display": "summarized"}
+        peticion["output_config"] = {"effort": settings.anthropic_effort}
+
+    # En las dos ultimas vueltas se fuerza la siguiente herramienta del riel.
+    # Forzar `emitir_dictamen` sin haber evaluado solo produciria un error, asi
+    # que se escala en orden.
+    if numero > maximo - 2:
+        obligatoria = _siguiente_obligatoria(estado)
+        if obligatoria:
+            peticion["tool_choice"] = {"type": "tool", "name": obligatoria}
+
+    return peticion
+
+
 def _primer_mensaje(estado: EstadoEjecucion) -> str:
     return (
         f"Resuelve la solicitud de pre-autorización {estado.folio}.\n\n"
@@ -113,6 +165,35 @@ def dictamen_respaldo(estado: EstadoEjecucion) -> Dictamen | None:
     )
 
 
+async def _rescatar(estado: EstadoEjecucion, arranque: float) -> AsyncGenerator[dict[str, Any]]:
+    """
+    Entrega el dictamen que se pueda armar despues de un fallo del proveedor.
+
+    Si el modelo ya habia llegado a `evaluar_expediente`, el veredicto y las
+    cifras estan calculados y son correctos: seria absurdo tirarlos porque la
+    llamada siguiente fallara. Solo se pierde la redaccion.
+    """
+    if estado.dictamen is not None or estado.veredicto is None:
+        return
+    respaldo = dictamen_respaldo(estado)
+    if respaldo is None:
+        return
+    estado.dictamen = respaldo
+    yield {
+        "tipo": "aviso",
+        "mensaje": (
+            "El proveedor falló despues de aplicar las reglas: el dictamen se "
+            "entrega con la plantilla de respaldo, con el veredicto y las cifras "
+            "ya calculados."
+        ),
+    }
+    yield {
+        "tipo": "dictamen",
+        "dictamen": estado.dictamen.model_dump(mode="json"),
+        "ms_total": round((time.monotonic() - arranque) * 1000),
+    }
+
+
 async def ejecutar(estado: EstadoEjecucion) -> AsyncGenerator[dict[str, Any]]:
     """Corre el agente sobre un caso ya cargado y va emitiendo eventos."""
     arranque = time.monotonic()
@@ -122,33 +203,29 @@ async def ejecutar(estado: EstadoEjecucion) -> AsyncGenerator[dict[str, Any]]:
     mensajes: list[dict[str, Any]] = [{"role": "user", "content": _primer_mensaje(estado)}]
 
     try:
-        for iteracion in range(1, maximo + 1):
-            peticion: dict[str, Any] = {
-                "model": settings.anthropic_model,
-                "max_tokens": settings.anthropic_max_tokens,
-                # El prompt va primero y cacheado: es el prefijo estable.
-                "system": [
-                    {
-                        "type": "text",
-                        "text": PROMPT_SISTEMA,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                "thinking": {"type": "adaptive", "display": "summarized"},
-                "output_config": {"effort": settings.anthropic_effort},
-                "tools": HERRAMIENTAS,
-                "messages": mensajes,
-            }
+        vueltas = 0
+        compatibilidad = False
+        while vueltas < maximo:
+            numero = vueltas + 1
+            peticion = _peticion(estado, mensajes, numero, maximo, compatibilidad)
 
-            # En las dos ultimas vueltas se fuerza la siguiente herramienta del
-            # riel. Forzar `emitir_dictamen` sin haber evaluado solo produciria
-            # un error, asi que se escala en orden.
-            if iteracion > maximo - 2:
-                obligatoria = _siguiente_obligatoria(estado)
-                if obligatoria:
-                    peticion["tool_choice"] = {"type": "tool", "name": obligatoria}
+            try:
+                stream_ctx = cliente.messages.stream(**peticion)
+            except anthropic.BadRequestError as error:
+                if compatibilidad or not _parametro_no_soportado(error):
+                    raise
+                compatibilidad = True
+                yield {
+                    "tipo": "aviso",
+                    "mensaje": (
+                        "El proveedor rechazó un parámetro opcional; se reintenta "
+                        "sin razonamiento transmitido ni control de esfuerzo."
+                    ),
+                }
+                continue
 
-            async with cliente.messages.stream(**peticion) as stream:
+            iteracion = numero
+            async with stream_ctx as stream:
                 async for evento in stream:
                     if evento.type != "content_block_delta":
                         continue
@@ -169,6 +246,8 @@ async def ejecutar(estado: EstadoEjecucion) -> AsyncGenerator[dict[str, Any]]:
                 }
 
             llamadas = [b for b in respuesta.content if b.type == "tool_use"]
+
+            vueltas = numero
 
             if not llamadas:
                 if estado.dictamen is not None:
@@ -288,9 +367,13 @@ async def ejecutar(estado: EstadoEjecucion) -> AsyncGenerator[dict[str, Any]]:
             "codigo": "PROVEEDOR",
             "mensaje": f"El proveedor de IA respondió con código {error.status_code}.",
         }
+        async for suceso in _rescatar(estado, arranque):
+            yield suceso
     except anthropic.APIConnectionError:
         yield {
             "tipo": "error",
             "codigo": "CONEXION",
             "mensaje": "No se pudo conectar con el proveedor de IA.",
         }
+        async for suceso in _rescatar(estado, arranque):
+            yield suceso

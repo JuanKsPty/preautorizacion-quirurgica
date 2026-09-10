@@ -10,6 +10,8 @@ dictamen.
 import json
 from types import SimpleNamespace
 
+import anthropic
+import httpx
 from fastapi.testclient import TestClient
 
 from app.agente import ejecutor
@@ -293,3 +295,105 @@ def test_un_informe_que_no_existe_da_404_antes_de_abrir_el_stream(client: TestCl
         "/api/preautorizaciones/evaluar", json={"codigo_informe": "INF-NO-EXISTE"}
     )
     assert respuesta.status_code == 404
+
+
+# --------------------------------------------------- resiliencia del proveedor
+
+
+def error_400(mensaje: str) -> anthropic.BadRequestError:
+    peticion = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    return anthropic.BadRequestError(
+        mensaje, response=httpx.Response(400, request=peticion), body=None
+    )
+
+
+class _ClienteQueRechazaParametro:
+    """
+    Rechaza la primera llamada con un 400 que nombra `thinking`, y despues
+    funciona. Simula un modelo o una version de API que no acepta un parametro
+    opcional.
+    """
+
+    def __init__(self, turnos: list[tuple[list, SimpleNamespace]]) -> None:
+        self.messages = _MensajesFalsos(turnos)
+        self._reales = self.messages.stream
+        self._rechazo = False
+
+        def stream(**kwargs):
+            if not self._rechazo:
+                self._rechazo = True
+                raise error_400("thinking: Extended thinking is not supported for this model.")
+            return self._reales(**kwargs)
+
+        self.messages.stream = stream  # type: ignore[method-assign]
+
+
+def test_un_400_por_un_parametro_opcional_no_mata_al_agente(client: TestClient, monkeypatch):
+    """
+    Si el proveedor rechaza `thinking` o `output_config`, se reintenta sin ellos.
+    Es preferible un agente sin razonamiento transmitido que ningun agente.
+    """
+    falso = _ClienteQueRechazaParametro(guion_completo())
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-de-prueba")
+    monkeypatch.setattr(ejecutor, "obtener_cliente", lambda: falso)
+
+    respuesta = client.post(
+        "/api/preautorizaciones/evaluar", json={"codigo_informe": "INF-2026-0031"}
+    )
+    eventos = leer_eventos(respuesta.text)
+    tipos = [e["tipo"] for e in eventos]
+
+    assert "aviso" in tipos
+    assert any("parámetro opcional" in e.get("mensaje", "") for e in eventos)
+    # Y aun asi se emite el dictamen correcto.
+    dictamen = next(e["dictamen"] for e in eventos if e["tipo"] == "dictamen")
+    assert dictamen["veredicto"] == "APROBADO"
+    # La peticion del reintento ya no lleva los parametros opcionales.
+    primera = falso.messages.peticiones[0]
+    assert "thinking" not in primera
+    assert "output_config" not in primera
+    assert isinstance(primera["system"], str)
+
+
+class _ClienteQueSeCaeTrasEvaluar:
+    """Funciona hasta que las reglas ya corrieron, y entonces se cae."""
+
+    def __init__(self, turnos: list[tuple[list, SimpleNamespace]]) -> None:
+        self.messages = _MensajesFalsos(turnos)
+        reales = self.messages.stream
+
+        def stream(**kwargs):
+            if len(self.messages.peticiones) >= 4:
+                raise anthropic.APIConnectionError(
+                    request=httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+                )
+            return reales(**kwargs)
+
+        self.messages.stream = stream  # type: ignore[method-assign]
+
+
+def test_si_el_proveedor_se_cae_tras_aplicar_las_reglas_se_entrega_el_veredicto(
+    client: TestClient, monkeypatch
+):
+    """
+    El veredicto y las cifras ya estaban calculados: tirarlos porque la llamada
+    siguiente fallo seria absurdo. Solo se pierde la redaccion del modelo.
+    """
+    falso = _ClienteQueSeCaeTrasEvaluar(guion_completo())
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-ant-de-prueba")
+    monkeypatch.setattr(ejecutor, "obtener_cliente", lambda: falso)
+
+    respuesta = client.post(
+        "/api/preautorizaciones/evaluar", json={"codigo_informe": "INF-2026-0031"}
+    )
+    eventos = leer_eventos(respuesta.text)
+    tipos = [e["tipo"] for e in eventos]
+
+    assert "error" in tipos
+    assert "dictamen" in tipos, "un fallo del proveedor no debe borrar el veredicto"
+    dictamen = next(e["dictamen"] for e in eventos if e["tipo"] == "dictamen")
+    assert dictamen["veredicto"] == "APROBADO"
+    assert dictamen["desglose"]["cubierto_aseguradora"] == 4896.0
+    # El error va antes del dictamen y el fin es el ultimo, siempre.
+    assert tipos.index("error") < tipos.index("dictamen")
+    assert tipos[-1] == "fin"
