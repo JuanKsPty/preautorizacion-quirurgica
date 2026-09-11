@@ -7,14 +7,13 @@ export function AppShell() {
     <div className="bg-background text-foreground">
       <Sidebar />
 
-      {/* La columna ocupa la altura de la pantalla como minimo, asi el pie
-          queda abajo del todo aunque la pagina tenga poco contenido. */}
-      <div className="flex min-h-dvh flex-col lg:pl-60">
+      {/* Marco de alto fijo: lo que sobra scrollea dentro del area de contenido,
+          no en la ventana. Asi el pie siempre esta a la vista y una pagina puede
+          repartirse un alto conocido entre sus secciones. */}
+      <div className="flex h-dvh flex-col overflow-hidden lg:pl-60">
         <BarraMovil />
 
-        {/* flex para que una pagina pueda pedir el alto disponible con h-full
-            y repartirlo entre sus secciones. */}
-        <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pt-9 pb-5 sm:px-6 lg:px-10">
+        <main className="scroll-fino mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-9 pb-5 sm:px-6 lg:px-10">
           <Outlet />
         </main>
 

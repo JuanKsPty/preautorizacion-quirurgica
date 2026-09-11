@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   AlertCircleIcon,
-  ChevronDownIcon,
+  ChevronRightIcon,
   FileTextIcon,
+  PaperclipIcon,
   PlayIcon,
   RotateCcwIcon,
   SquareIcon,
@@ -18,15 +19,21 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePreautorizacion } from '@/hooks/usePreautorizacion';
 import { NOMBRE_PLAN, dinero, fecha, segundos } from '@/lib/formato';
-import { cn } from '@/lib/utils';
 import { listarInformes, listarPolizas } from '@/services/catalogoService';
 
 export function EvaluarPage() {
   const [codigo, setCodigo] = useState('');
-  const [verRelato, setVerRelato] = useState(false);
   const {
     estado,
     cabecera,
@@ -59,7 +66,7 @@ export function EvaluarPage() {
   const hayResultado = pasos.length > 0 || chequeos.length > 0 || dictamen !== null || evaluando;
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight">Nueva solicitud</h1>
         <p className="text-sm text-muted-foreground">
@@ -67,10 +74,10 @@ export function EvaluarPage() {
         </p>
       </div>
 
-      <div className="grid flex-1 gap-4 lg:grid-cols-[minmax(340px,400px)_1fr] lg:grid-rows-[1fr]">
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(340px,400px)_1fr] lg:grid-rows-[minmax(0,1fr)]">
         {/* Columna de trabajo. */}
-        <div className="flex flex-col">
-          <Card className="flex-1">
+        <div className="flex min-h-0 flex-col">
+          <Card className="flex min-h-0 flex-1">
               <CardHeader className="items-center">
                 <CardTitle className="text-lg">Expediente de entrada</CardTitle>
                 <CardAction>
@@ -98,7 +105,7 @@ export function EvaluarPage() {
                 </CardAction>
               </CardHeader>
 
-              <CardContent className="flex flex-1 flex-col gap-3">
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
                 {informes.isPending ? (
                   <Skeleton className="h-10 w-full" />
                 ) : (
@@ -109,7 +116,6 @@ export function EvaluarPage() {
                     disabled={evaluando}
                     onChange={(evento) => {
                       setCodigo(evento.target.value);
-                      setVerRelato(false);
                       reiniciar();
                     }}
                     className="h-10 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
@@ -139,18 +145,21 @@ export function EvaluarPage() {
                 {/* El area de datos existe siempre, llena o vacia, y ocupa lo
                     que quede de tarjeta: al elegir un informe no cambia de alto
                     de golpe. */}
-                <div className="flex-1 overflow-y-auto rounded-xl bg-muted/50 p-4">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-muted/50 p-4">
                   {seleccionado ? (
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium">{seleccionado.paciente}</p>
-                          <p className="text-xs text-muted-foreground">
+                    <div className="flex min-h-0 flex-1 flex-col gap-3">
+                      {/* Nombre y etiqueta comparten fila y ninguno envuelve:
+                          que el informe sea urgente no puede mover nada de lo
+                          que viene debajo. */}
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{seleccionado.paciente}</p>
+                          <p className="truncate text-xs text-muted-foreground">
                             {seleccionado.hospital} · {seleccionado.medicoTratante}
                           </p>
                         </div>
                         {seleccionado.esEmergencia && (
-                          <Badge className="bg-alerta-fondo text-alerta">
+                          <Badge className="shrink-0 bg-alerta-fondo text-alerta">
                             <ZapIcon className="size-3" /> Urgencia
                           </Badge>
                         )}
@@ -169,41 +178,58 @@ export function EvaluarPage() {
                         <Dato termino="Plan" valor={poliza ? NOMBRE_PLAN[poliza.plan] : '—'} />
                       </dl>
 
-                      <div>
-                        <p className="mb-1.5 text-xs text-muted-foreground">
-                          Documentos adjuntos ({seleccionado.documentosAdjuntos.length})
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {seleccionado.documentosAdjuntos.map((documento) => (
-                            <Badge key={documento} variant="secondary">
-                              {documento}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setVerRelato((previo) => !previo)}
-                          aria-expanded={verRelato}
-                          className="flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
-                        >
-                          <ChevronDownIcon
-                            className={cn('size-4 transition-transform', verRelato && 'rotate-180')}
+                      {/* En ventana aparte: desplegar la lista aqui moveria
+                          todo lo que viene debajo. */}
+                      <Dialog>
+                        <DialogTrigger className="flex w-full shrink-0 items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                          <PaperclipIcon
+                            className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden
                           />
+                          Documentos adjuntos ({seleccionado.documentosAdjuntos.length})
+                          <ChevronRightIcon
+                            className="ml-auto size-4 shrink-0 text-muted-foreground"
+                            aria-hidden
+                          />
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Documentos adjuntos</DialogTitle>
+                            <DialogDescription>
+                              {seleccionado.documentosAdjuntos.length} documentos que el hospital
+                              envió con el informe {seleccionado.codigo}.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <ul className="space-y-2">
+                            {seleccionado.documentosAdjuntos.map((documento) => (
+                              <li
+                                key={documento}
+                                className="flex items-center gap-2.5 rounded-lg bg-muted/50 px-3 py-2 text-sm"
+                              >
+                                <FileTextIcon
+                                  className="size-4 shrink-0 text-muted-foreground"
+                                  aria-hidden
+                                />
+                                {documento}
+                              </li>
+                            ))}
+                          </ul>
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* El relato ocupa lo que sobre y hace scroll por dentro,
+                          asi la tarjeta mide igual con todos los informes. */}
+                      <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                        <p className="mt-1 text-xs text-muted-foreground">
                           Relato clínico en texto libre
-                        </button>
-                        {verRelato && (
-                          <p className="mt-2 max-h-72 overflow-y-auto rounded-lg bg-background p-3 text-sm whitespace-pre-wrap">
-                            {seleccionado.texto}
-                          </p>
-                        )}
+                        </p>
+                        <p className="scroll-fino mr-6 mb-1 min-h-24 flex-1 overflow-y-auto rounded-lg bg-background p-3 text-sm whitespace-pre-wrap">
+                          {seleccionado.texto}
+                        </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex h-full min-h-48 items-center justify-center">
+                    <div className="flex flex-1 items-center justify-center">
                       <p className="max-w-[16rem] text-center text-sm text-muted-foreground">
                         Al elegir un informe aparecen aquí el paciente, la póliza y los documentos
                         adjuntos.

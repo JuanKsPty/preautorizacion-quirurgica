@@ -167,3 +167,33 @@
     @apply font-sans;
     }
 }
+
+@layer utilities {
+  /* Barra de scroll discreta: la del sistema es gruesa y opaca, y aqui compite
+     con el contenido de una caja pequena. El color sale de --foreground, asi
+     que se adapta solo al tema claro y al oscuro. */
+  .scroll-fino {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 20%, transparent) transparent;
+  }
+
+  .scroll-fino::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scroll-fino::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-fino::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--foreground) 20%, transparent);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+
+  .scroll-fino::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--foreground) 35%, transparent);
+  }
+}
