@@ -1,14 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
-import { BanIcon, SearchIcon } from 'lucide-react';
+import {
+  ChevronRightIcon,
+  CircleAlertIcon,
+  FileTextIcon,
+  PaperclipIcon,
+  SearchIcon,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NOMBRE_PLAN, dinero } from '@/lib/formato';
 import { cn } from '@/lib/utils';
 import { listarPolizas, listarProcedimientos } from '@/services/catalogoService';
-import type { NivelPlan } from '@/types/api';
+import type { NivelPlan, Procedimiento } from '@/types/api';
 
 const PLANES: NivelPlan[] = ['basico', 'preferente', 'ejecutivo'];
 
@@ -102,6 +117,9 @@ export function ReglasPage() {
                     <th rowSpan={2} className="pb-2 pr-4 align-bottom font-medium">
                       Procedimiento
                     </th>
+                    <th rowSpan={2} className="pb-2 pr-4 align-bottom font-medium">
+                      Categoría
+                    </th>
                     <th
                       colSpan={3}
                       className="border-b pb-1 pr-4 text-center font-medium whitespace-nowrap"
@@ -130,24 +148,37 @@ export function ReglasPage() {
                 </thead>
                 <tbody className="divide-y">
                   {procedimientosFiltrados.map((procedimiento) => (
-                    <tr key={procedimiento.cpt}>
-                      <td className="py-3 pr-4 align-top font-mono whitespace-nowrap">
+                    // h-px + align-middle: los documentos se muestran en un
+                    // popup y no hacen crecer solo algunas filas.
+                    <tr key={procedimiento.cpt} className="h-px">
+                      <td className="h-full py-3 pr-4 align-middle font-mono whitespace-nowrap">
                         {procedimiento.cpt}
                       </td>
-                      <td className="py-3 pr-4 align-top">
-                        <p className="font-medium">{procedimiento.nombre}</p>
-                        <p className="text-xs text-muted-foreground">{procedimiento.categoria}</p>
-                        {procedimiento.exclusion && (
-                          <p className="mt-1 flex items-start gap-1.5 text-xs text-rechazo">
-                            <BanIcon className="mt-0.5 size-3 shrink-0" aria-hidden />
-                            Excluido: {procedimiento.exclusion}
-                          </p>
-                        )}
+                      <td className="h-full py-3 pr-4 align-middle">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium">{procedimiento.nombre}</p>
+                          {procedimiento.exclusion && (
+                            <Tooltip>
+                              <TooltipTrigger className="shrink-0 outline-none">
+                                <CircleAlertIcon
+                                  className="size-4 text-rechazo"
+                                  aria-label={`Excluido: ${procedimiento.exclusion}`}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-64">
+                                Excluido: {procedimiento.exclusion}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </td>
+                      <td className="h-full py-3 pr-4 align-middle whitespace-nowrap text-muted-foreground">
+                        {procedimiento.categoria}
                       </td>
                       {PLANES.map((plan) => (
                         <td
                           key={`carencia-${plan}`}
-                          className="py-3 pr-4 align-top tabular-nums whitespace-nowrap"
+                          className="h-full py-3 pr-4 align-middle tabular-nums whitespace-nowrap"
                         >
                           {procedimiento.carenciaDias[plan]}
                         </td>
@@ -156,21 +187,15 @@ export function ReglasPage() {
                         <td
                           key={`cobertura-${plan}`}
                           className={cn(
-                            'py-3 pr-4 align-top tabular-nums whitespace-nowrap',
+                            'h-full py-3 pr-4 align-middle tabular-nums whitespace-nowrap',
                             procedimiento.coberturaPorcentaje[plan] === 0 && 'text-rechazo'
                           )}
                         >
                           {procedimiento.coberturaPorcentaje[plan]}%
                         </td>
                       ))}
-                      <td className="py-3 align-top">
-                        <div className="flex flex-wrap gap-1">
-                          {procedimiento.documentosRequeridos.map((documento) => (
-                            <Badge key={documento} variant="secondary" className="text-[11px]">
-                              {documento}
-                            </Badge>
-                          ))}
-                        </div>
+                      <td className="h-full py-3 align-middle">
+                        <DocumentosExigidos procedimiento={procedimiento} />
                       </td>
                     </tr>
                   ))}
@@ -288,5 +313,37 @@ export function ReglasPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function DocumentosExigidos({ procedimiento }: { procedimiento: Procedimiento }) {
+  return (
+    <Dialog>
+      <DialogTrigger className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+        <PaperclipIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        {procedimiento.documentosRequeridos.length}
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Documentos exigidos</DialogTitle>
+          <DialogDescription>
+            {procedimiento.documentosRequeridos.length} documentos que el expediente debe traer
+            para {procedimiento.nombre} (CPT {procedimiento.cpt}).
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="space-y-2">
+          {procedimiento.documentosRequeridos.map((documento) => (
+            <li
+              key={documento}
+              className="flex items-center gap-2.5 rounded-lg bg-muted/50 px-3 py-2 text-sm"
+            >
+              <FileTextIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              {documento}
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
   );
 }
