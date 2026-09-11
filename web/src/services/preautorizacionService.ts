@@ -1,4 +1,5 @@
 import { ApiError, apiFetch, apiUrl } from './http';
+import { DEMO_DICTAMENES, demoModeEnabled } from '@/lib/demo-data';
 import type {
   DictamenRegistrado,
   DictamenRegistradoDto,
@@ -27,6 +28,7 @@ const aRegistro = (dto: DictamenRegistradoDto): DictamenRegistrado => ({
 });
 
 export async function listarDictamenes(): Promise<DictamenRegistrado[]> {
+  if (demoModeEnabled()) return DEMO_DICTAMENES;
   return (await apiFetch<DictamenRegistradoDto[]>('/preautorizaciones')).map(aRegistro);
 }
 

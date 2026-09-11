@@ -72,31 +72,37 @@
     --revision-fondo: oklch(0.955 0.03 300);
     --rechazo: oklch(0.5 0.18 25);
     --rechazo-fondo: oklch(0.955 0.03 25);
-    --background: oklch(1 0 0);
+    /* El fondo lleva un tinte frio y las tarjetas van en blanco puro: asi una
+       tarjeta se lee como una superficie sobre el lienzo, no como un rectangulo
+       con borde. */
+    --background: oklch(0.985 0.004 220);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
+    /* Acento de marca: un sexto hueco de tono (195) que ningun veredicto usa
+       (155 exito, 75 alerta, 250 info, 300 revision, 25 rechazo), para que
+       nunca se confunda con el significado clinico de un color de veredicto. */
+    --primary: oklch(0.45 0.11 195);
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.97 0 0);
     --secondary-foreground: oklch(0.205 0 0);
     --muted: oklch(0.97 0 0);
     --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --accent: oklch(0.955 0.028 195);
+    --accent-foreground: oklch(0.45 0.11 195);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --ring: oklch(0.6 0.09 195);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+    --radius: 0.75rem;
+    --sidebar: oklch(1 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -104,6 +110,12 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+    --glow-highlight: #f7f8f8;
+    --glow-mist: #d9dfe0;
+    --glow-core: #aeb8ba;
+    --glow-shadow-core: #5b686a;
+    --glow-shadow: 0px -4px 23px 0px rgb(112 123 125 / 42%);
+    --nav-glow: rgb(38 143 145 / 42%);
 }
 
 .dark {
@@ -117,30 +129,30 @@
     --revision-fondo: oklch(0.28 0.05 300);
     --rechazo: oklch(0.78 0.15 25);
     --rechazo-fondo: oklch(0.29 0.06 25);
-    --background: oklch(0.145 0 0);
+    --background: oklch(0.165 0.008 240);
     --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
+    --card: oklch(0.215 0.008 240);
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
+    --primary: oklch(0.8 0.13 195);
+    --primary-foreground: oklch(0.145 0 0);
     --secondary: oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
     --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --accent: oklch(0.28 0.05 195);
+    --accent-foreground: oklch(0.8 0.13 195);
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --ring: oklch(0.7 0.11 195);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
+    --sidebar: oklch(0.195 0.008 240);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
     --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -148,6 +160,12 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    --glow-highlight: #e7fffc;
+    --glow-mist: #5de0d7;
+    --glow-core: #13aaa7;
+    --glow-shadow-core: #002a2b;
+    --glow-shadow: 0px -4px 23px 0px rgb(154 244 232 / 71%);
+    --nav-glow: rgb(93 224 215 / 72%);
 }
 
 @layer base {
