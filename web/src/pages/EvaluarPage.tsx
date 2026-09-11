@@ -111,6 +111,16 @@ export function EvaluarPage() {
                   <Skeleton className="h-10 w-full" />
                 ) : (
                   <div className="relative">
+                    {/* bg-background explicito, no transparente: en Windows el
+                        panel nativo del <select> a veces no seguia el fondo
+                        oscuro (color-scheme no bastaba), y el texto blanco
+                        quedaba sobre un panel claro. Con un fondo propio, el
+                        navegador ya no tiene que adivinarlo.
+
+                        appearance-none quita la flecha nativa, que el
+                        navegador pega al borde sin dejar que el padding la
+                        separe (el mismo problema que la barra de scroll) — la
+                        que se ve es el icono de abajo, con su propio margen. */}
                     <select
                       id="informe"
                       aria-label="Informe médico recibido del hospital"
@@ -155,15 +165,18 @@ export function EvaluarPage() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-muted/50 p-4">
                   {seleccionado ? (
                     <div className="flex min-h-0 flex-1 flex-col gap-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium">{seleccionado.paciente}</p>
-                          <p className="text-xs text-muted-foreground">
+                      {/* Nombre y etiqueta comparten fila y ninguno envuelve:
+                          que el informe sea urgente no puede mover nada de lo
+                          que viene debajo. */}
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{seleccionado.paciente}</p>
+                          <p className="truncate text-xs text-muted-foreground">
                             {seleccionado.hospital} · {seleccionado.medicoTratante}
                           </p>
                         </div>
                         {seleccionado.esEmergencia && (
-                          <Badge className="bg-alerta-fondo text-alerta">
+                          <Badge className="shrink-0 bg-alerta-fondo text-alerta">
                             <ZapIcon className="size-3" /> Urgencia
                           </Badge>
                         )}
@@ -182,10 +195,10 @@ export function EvaluarPage() {
                         <Dato termino="Plan" valor={poliza ? NOMBRE_PLAN[poliza.plan] : '—'} />
                       </dl>
 
-                      {/* En ventana aparte: la lista no cambia el alto del
-                          expediente cuando un informe trae más documentos. */}
+                      {/* En ventana aparte: desplegar la lista aqui moveria
+                          todo lo que viene debajo. */}
                       <Dialog>
-                        <DialogTrigger className="flex w-full items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+                        <DialogTrigger className="flex w-full shrink-0 items-center gap-1.5 rounded-lg bg-background px-3 py-2 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
                           <PaperclipIcon
                             className="size-4 shrink-0 text-muted-foreground"
                             aria-hidden
@@ -221,14 +234,23 @@ export function EvaluarPage() {
                         </DialogContent>
                       </Dialog>
 
-                      {/* El relato ocupa el espacio restante y hace scroll por
-                          dentro, para que cada expediente conserve el mismo
-                          alto aunque el texto sea largo. */}
+                      {/* El relato ocupa lo que sobre y hace scroll por dentro,
+                          asi la tarjeta mide igual con todos los informes. */}
                       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                         <p className="text-xs text-muted-foreground">
                           Relato clínico en texto libre
                         </p>
+                        {/* El padding no aparta la barra de scroll de su propio
+                            borde (solo mueve el texto: la barra se pinta
+                            igual, pegada al borde). Para separarla de verdad
+                            hace falta que lo que hace scroll sea mas angosto
+                            que la caja, con un carril en blanco al lado. */}
                         <div className="flex min-h-24 flex-1 rounded-lg bg-background">
+                          {/* mt/mb: la misma idea que el carril de la derecha,
+                              pero en vertical — la barra de scroll va pegada
+                              al borde de este parrafo, asi que el margen
+                              aparta ese borde (y con el, la barra) del borde
+                              de la caja. */}
                           <p className="scroll-fino mt-2 mb-2 min-w-0 flex-1 overflow-y-auto py-1 pr-2 pl-4 text-sm whitespace-pre-wrap">
                             {seleccionado.texto}
                           </p>
@@ -237,7 +259,7 @@ export function EvaluarPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex h-full min-h-48 items-center justify-center">
+                    <div className="flex flex-1 items-center justify-center">
                       <p className="max-w-[16rem] text-center text-sm text-muted-foreground">
                         Al elegir un informe aparecen aquí el paciente, la póliza y los documentos
                         adjuntos.
