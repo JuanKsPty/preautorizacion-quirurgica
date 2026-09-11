@@ -6,12 +6,16 @@ import {
   FileTextIcon,
   PaperclipIcon,
   PlayIcon,
+  PlusIcon,
   RotateCcwIcon,
   SquareIcon,
   WandSparklesIcon,
   ZapIcon,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { BotonEscritura } from '@/components/expediente/BotonEscritura';
+import { useEscrituraHabilitada } from '@/hooks/useEscrituraHabilitada';
 import { LineaTiempo } from '@/components/dictamen/LineaTiempo';
 import { ListaChequeos } from '@/components/dictamen/ListaChequeos';
 import { TarjetaDictamen } from '@/components/dictamen/TarjetaDictamen';
@@ -34,7 +38,12 @@ import { NOMBRE_PLAN, dinero, fecha, segundos } from '@/lib/formato';
 import { listarInformes, listarPolizas } from '@/services/catalogoService';
 
 export function EvaluarPage() {
-  const [codigo, setCodigo] = useState('');
+  const [params] = useSearchParams();
+  const informeParam = params.get('informe');
+  const [codigo, setCodigo] = useState(informeParam ?? '');
+  // `<StrictMode>` ejecuta los efectos dos veces en desarrollo: sin esta guarda
+  // se abririan DOS streams SSE por cada llegada desde «Guardar y evaluar».
+  const yaArranco = useRef(false);
   const {
     estado,
     cabecera,
@@ -52,6 +61,7 @@ export function EvaluarPage() {
   } = usePreautorizacion();
 
   const informes = useQuery({ queryKey: ['informes'], queryFn: listarInformes });
+  const escritura = useEscrituraHabilitada();
   const polizas = useQuery({ queryKey: ['polizas'], queryFn: listarPolizas });
 
   const seleccionado = useMemo(
@@ -62,6 +72,15 @@ export function EvaluarPage() {
     () => polizas.data?.find((p) => p.numero === seleccionado?.numeroPoliza) ?? null,
     [polizas.data, seleccionado]
   );
+
+  // Al llegar desde «Guardar y evaluar» la evaluacion arranca sola: la persona
+  // ya pulso un boton, no tiene por que pulsar otro.
+  useEffect(() => {
+    if (!informeParam || yaArranco.current) return;
+    if (!informes.data?.some((i) => i.codigo === informeParam)) return;
+    yaArranco.current = true;
+    void evaluar(informeParam);
+  }, [informeParam, informes.data, evaluar]);
 
   const evaluando = estado === 'evaluando';
   const hayResultado = pasos.length > 0 || chequeos.length > 0 || dictamen !== null || evaluando;
@@ -146,6 +165,19 @@ export function EvaluarPage() {
                     />
                   </div>
                 )}
+
+                {/* Aqui es donde a alguien se le ocurre por primera vez que su
+                    caso no esta en la lista. */}
+                <div className="flex justify-end">
+                  <BotonEscritura
+                    estado={escritura}
+                    a="/expediente/informes/nuevo"
+                    variante="ghost"
+                    tamano="sm"
+                  >
+                    <PlusIcon /> Nuevo informe
+                  </BotonEscritura>
+                </div>
 
                 {informes.isError && (
                   <Alert variant="destructive">

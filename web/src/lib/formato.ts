@@ -107,3 +107,47 @@ export const HERRAMIENTA: Record<string, string> = {
   evaluar_expediente: 'Aplica las condiciones de la póliza',
   emitir_dictamen: 'Emite el dictamen',
 };
+
+/**
+ * «B/. 12,500.00», «12.500,00» o «12500» -> 12500. `null` si no es un numero.
+ *
+ * El campo de dinero no puede ser `type="number"`: pondria flechas, la rueda del
+ * raton cambiaria el valor en un formulario que trata de dinero, y rechazaria
+ * «12,500.00» pegado dejando el campo vacio sin explicar por que.
+ */
+export function parseDinero(valor: string): number | null {
+  const limpio = valor.replace(/B\/\.?/gi, '').replace(/\s/g, '').trim();
+  if (!limpio) return null;
+  // es-PA escribe 12,500.00 pero la gente pega 12.500,00. La ultima marca de
+  // puntuacion es la decimal; el resto son separadores de millar.
+  const ultimaComa = limpio.lastIndexOf(',');
+  const ultimoPunto = limpio.lastIndexOf('.');
+  const decimal = ultimaComa > ultimoPunto ? ',' : '.';
+  const normalizado = limpio
+    .replaceAll(decimal === ',' ? '.' : ',', '')
+    .replace(decimal, '.');
+  if (!/^-?\d*(\.\d*)?$/.test(normalizado)) return null;
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+/** Como `dinero()` pero sin el «B/.»: el prefijo ya lo pinta el campo. */
+export function dineroPlano(valor: number): string {
+  return valor.toLocaleString('es-PA', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * `Date` -> «AAAA-MM-DD» en hora LOCAL, que es lo que espera <input type="date">.
+ *
+ * No se puede usar `toISOString()`: convierte a UTC y en Panama (UTC-5) devuelve
+ * el dia anterior. Como los servicios parsean con `new Date(\`${iso}T00:00:00\`)`,
+ * que es hora local, cada poliza editada retrocederia un dia en cada guardado.
+ */
+export function fechaInput(valor: Date): string {
+  const mes = String(valor.getMonth() + 1).padStart(2, '0');
+  const dia = String(valor.getDate()).padStart(2, '0');
+  return `${valor.getFullYear()}-${mes}-${dia}`;
+}

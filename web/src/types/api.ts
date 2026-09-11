@@ -157,6 +157,10 @@ export interface HealthDto {
   esfuerzo: string;
   origen_datos: string;
   notion_habilitado: boolean;
+  /** Por que se lee del respaldo aunque Notion este configurado. */
+  notion_error: string | null;
+  /** Si se puede crear y editar. Sin esto, la UI ofreceria formularios que van a 503. */
+  escritura_habilitada: boolean;
 }
 
 export interface Health {
@@ -170,6 +174,8 @@ export interface Health {
   esfuerzo: string;
   origenDatos: string;
   notionHabilitado: boolean;
+  notionError: string | null;
+  escrituraHabilitada: boolean;
 }
 
 export interface DictamenRegistradoDto {
@@ -257,3 +263,105 @@ export type EventoAgente =
   | { tipo: 'aviso'; mensaje: string }
   | { tipo: 'error'; codigo?: string; mensaje: string }
   | { tipo: 'fin'; folio: string; veredicto: Veredicto | null };
+
+// ------------------------------------------------------------------ escritura
+
+/** Campos que el extractor intenta rellenar. La UI marca los que no encontro. */
+export type CampoInforme =
+  | 'paciente'
+  | 'cedula'
+  | 'numero_poliza'
+  | 'hospital'
+  | 'medico_tratante'
+  | 'especialidad'
+  | 'fecha_informe'
+  | 'fecha_cirugia_propuesta'
+  | 'monto_cotizado';
+
+export type OrigenExtraccion = 'ia' | 'sin_ia' | 'ia_degradada';
+
+export interface CamposExtraidosDto {
+  paciente: string | null;
+  cedula: string | null;
+  numero_poliza: string | null;
+  hospital: string | null;
+  medico_tratante: string | null;
+  especialidad: string | null;
+  fecha_informe: string | null;
+  fecha_cirugia_propuesta: string | null;
+  es_emergencia: boolean;
+  monto_cotizado: number | null;
+  documentos_adjuntos: string[];
+  /** No se guardan: el dictamen los vuelve a deducir. Se enseñan y ya. */
+  diagnostico_presuntivo: string | null;
+  cie10_presuntivo: string | null;
+  procedimiento_descrito: string | null;
+  cpt_sugerido: string | null;
+}
+
+export interface ExtraccionDto {
+  campos: CamposExtraidosDto;
+  campos_no_encontrados: CampoInforme[];
+  origen: OrigenExtraccion;
+  aviso: string | null;
+  ms: number;
+}
+
+/**
+ * Se consume en snake_case a proposito, igual que `Dictamen`: alimenta
+ * directamente un formulario cuyos campos son los del DTO de escritura, y
+ * traducirlo a camelCase para volver a traducirlo al enviar solo añadiria dos
+ * sitios donde equivocarse.
+ */
+export type Extraccion = ExtraccionDto;
+
+/** Lo que se manda al crear o editar. Es la forma que ya habla la API. */
+export interface InformeEntradaDto {
+  paciente: string;
+  cedula: string;
+  numero_poliza: string;
+  hospital: string;
+  medico_tratante: string;
+  especialidad: string;
+  fecha_informe: string;
+  fecha_cirugia_propuesta: string;
+  es_emergencia: boolean;
+  monto_cotizado: number;
+  documentos_adjuntos: string[];
+  texto: string;
+}
+
+export interface PolizaEntradaDto {
+  titular: string;
+  cedula: string;
+  plan: NivelPlan;
+  estado: EstadoPoliza;
+  inicio_vigencia: string;
+  fin_vigencia: string;
+  deducible_anual: number;
+  deducible_consumido: number;
+  coaseguro_porcentaje: number;
+  tope_anual: number;
+  tope_consumido: number;
+  red_preferente: boolean;
+  preexistencias_declaradas: string[];
+  dependientes: string[];
+}
+
+export interface RespuestaInformeDto {
+  informe: InformeDto;
+  notion_url: string;
+  avisos: string[];
+}
+
+export interface RespuestaPolizaDto {
+  poliza: PolizaDto;
+  notion_url: string;
+  avisos: string[];
+}
+
+export interface RespuestaEscritura<T> {
+  registro: T;
+  notionUrl: string;
+  avisos: string[];
+}

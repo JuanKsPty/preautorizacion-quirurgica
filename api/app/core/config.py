@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # pocos segundos, que es lo que importa en una demo en vivo: toda la
     # aritmetica dificil ya la hacen las herramientas deterministas.
     anthropic_effort: str = "medium"
+    # La extraccion del formulario es transcripcion, no criterio: no hay
+    # aritmetica ni veredicto. En "low" responde en 3-5 s en vez de 15, y un
+    # prerrelleno de 15 segundos se abandona antes de que termine.
+    anthropic_effort_extraccion: str = "low"
+    # Tope de una extraccion. El defecto del SDK son 10 minutos con 2 reintentos:
+    # sin esto, una llamada lenta deja el formulario colgado media hora.
+    extraccion_timeout_segundos: float = 25.0
 
     # ---- Agente --------------------------------------------------------
     agente_max_iteraciones: int = 8

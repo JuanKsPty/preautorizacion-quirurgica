@@ -2,6 +2,7 @@ import {
   ChevronDownIcon,
   ClipboardCheckIcon,
   FileCheck2Icon,
+  FolderPlusIcon,
   HouseIcon,
   ScaleIcon,
   StethoscopeIcon,
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils';
 const enlaces = [
   { to: '/', label: 'Home', icono: HouseIcon },
   { to: '/evaluar', label: 'Evaluar', icono: ClipboardCheckIcon },
+  { to: '/expediente', label: 'Expediente', icono: FolderPlusIcon },
   { to: '/casos', label: 'Historial', icono: FileCheck2Icon },
   { to: '/reglas', label: 'Reglamento', icono: ScaleIcon },
 ] as const;

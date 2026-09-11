@@ -21,8 +21,15 @@ MOTIVO_ESTADO: dict[str, str] = {
 }
 
 
-def _normalizar(texto: str) -> str:
-    """Minusculas y sin tildes, para comparar diagnosticos escritos a mano."""
+def normalizar(texto: str) -> str:
+    """
+    Minusculas y sin tildes, para comparar textos escritos a mano.
+
+    Es publica porque el alta de informes la necesita para ajustar los nombres
+    de documento a su grafia canonica ANTES de guardarlos: si se guarda
+    «Estudio de imagenes» sin tilde, `evaluar_documentos` no lo reconoce y el
+    veredicto cambia a DOCUMENTOS_FALTANTES sin ningun error a la vista.
+    """
     sin_tildes = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn").strip()
 
@@ -190,9 +197,9 @@ def evaluar_documentos(
     persona en el hospital y "Estudio de imagenes" y "estudio de imágenes" son
     el mismo papel.
     """
-    indice = {_normalizar(d): d for d in documentos_adjuntos}
+    indice = {normalizar(d): d for d in documentos_adjuntos}
     faltantes = [
-        req for req in procedimiento.documentos_requeridos if _normalizar(req) not in indice
+        req for req in procedimiento.documentos_requeridos if normalizar(req) not in indice
     ]
 
     if not faltantes:
@@ -233,11 +240,11 @@ def evaluar_preexistencia(
     esta cubierta; una que aparece en el informe y no en la poliza no se rechaza
     sola: se manda a revision medica, que es lo que haria un auditor humano.
     """
-    declaradas_norm = [_normalizar(d) for d in poliza.preexistencias_declaradas]
+    declaradas_norm = [normalizar(d) for d in poliza.preexistencias_declaradas]
     no_declaradas = [
         cond
         for cond in condiciones_detectadas
-        if not any(dec in _normalizar(cond) or _normalizar(cond) in dec for dec in declaradas_norm)
+        if not any(dec in normalizar(cond) or normalizar(cond) in dec for dec in declaradas_norm)
     ]
 
     if not condiciones_detectadas:

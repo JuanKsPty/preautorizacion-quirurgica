@@ -36,36 +36,22 @@ Las bases hay que crearlas antes, con estas columnas exactas:
 import argparse
 import asyncio
 import sys
-from typing import Any
 
 from notion_client import AsyncClient
 
 from app.core.config import settings
-from app.dominio.esquemas import NOMBRE_PLAN
 from app.repositorios.datos_demo import INFORMES, POLIZAS, PROCEDIMIENTOS
 
-TOPE_BLOQUE = 1900
-
-
-def rich(contenido: str) -> list[dict[str, Any]]:
-    return [{"type": "text", "text": {"content": contenido}}]
-
-
-def parrafos(texto: str) -> list[dict[str, Any]]:
-    bloques: list[dict[str, Any]] = []
-    for parrafo in texto.split("\n\n"):
-        limpio = parrafo.strip()
-        if not limpio:
-            continue
-        for inicio in range(0, len(limpio), TOPE_BLOQUE):
-            bloques.append(
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": rich(limpio[inicio : inicio + TOPE_BLOQUE])},
-                }
-            )
-    return bloques
+# Los constructores de propiedades son los MISMOS que usa la API para escribir.
+# Antes este script tenia su propia copia de los nombres de columna, y dos copias
+# acaban separandose sin que nadie se entere.
+from app.repositorios.escritura import (
+    a_multi_select,
+    a_rich_text,
+    parrafos,
+    propiedades_informe,
+    propiedades_poliza,
+)
 
 
 async def data_source(cliente: AsyncClient, database_id: str) -> str:
@@ -131,25 +117,7 @@ async def sembrar(rehacer: bool) -> None:
             continue
         await cliente.pages.create(
             parent={"type": "data_source_id", "data_source_id": ds_polizas},
-            properties={
-                "Número de Póliza": {"title": rich(poliza.numero)},
-                "Titular": {"rich_text": rich(poliza.titular)},
-                "Cédula": {"rich_text": rich(poliza.cedula)},
-                "Plan": {"select": {"name": NOMBRE_PLAN[poliza.plan]}},
-                "Estado": {"select": {"name": poliza.estado}},
-                "Inicio de Vigencia": {"date": {"start": poliza.inicio_vigencia.isoformat()}},
-                "Fin de Vigencia": {"date": {"start": poliza.fin_vigencia.isoformat()}},
-                "Deducible Anual": {"number": poliza.deducible_anual},
-                "Deducible Consumido": {"number": poliza.deducible_consumido},
-                "Coaseguro %": {"number": poliza.coaseguro_porcentaje},
-                "Tope Anual": {"number": poliza.tope_anual},
-                "Tope Consumido": {"number": poliza.tope_consumido},
-                "Red Preferente": {"checkbox": poliza.red_preferente},
-                "Preexistencias Declaradas": {
-                    "multi_select": [{"name": p} for p in poliza.preexistencias_declaradas]
-                },
-                "Dependientes": {"rich_text": rich("; ".join(poliza.dependientes))},
-            },
+            properties=propiedades_poliza(poliza),
         )
         creadas += 1
     print(f"pólizas: {creadas} nuevas, {len(POLIZAS) - creadas} ya estaban")
@@ -161,9 +129,9 @@ async def sembrar(rehacer: bool) -> None:
         await cliente.pages.create(
             parent={"type": "data_source_id", "data_source_id": ds_procs},
             properties={
-                "Código CPT": {"title": rich(proc.cpt)},
-                "Nombre": {"rich_text": rich(proc.nombre)},
-                "Sinónimos": {"rich_text": rich(";".join(proc.sinonimos))},
+                "Código CPT": {"title": a_rich_text(proc.cpt)},
+                "Nombre": {"rich_text": a_rich_text(proc.nombre)},
+                "Sinónimos": {"rich_text": a_rich_text(";".join(proc.sinonimos))},
                 "Categoría": {"select": {"name": proc.categoria}},
                 "Carencia Básico (días)": {"number": proc.carencia_dias["basico"]},
                 "Carencia Preferente (días)": {"number": proc.carencia_dias["preferente"]},
@@ -172,9 +140,9 @@ async def sembrar(rehacer: bool) -> None:
                 "Cobertura Preferente %": {"number": proc.cobertura_porcentaje["preferente"]},
                 "Cobertura Ejecutivo %": {"number": proc.cobertura_porcentaje["ejecutivo"]},
                 "Documentos Requeridos": {
-                    "multi_select": [{"name": d} for d in proc.documentos_requeridos]
+                    "multi_select": a_multi_select(proc.documentos_requeridos)
                 },
-                "Exclusión": {"rich_text": rich(proc.exclusion or "")},
+                "Exclusión": {"rich_text": a_rich_text(proc.exclusion or "")},
             },
         )
         creadas += 1
@@ -186,24 +154,7 @@ async def sembrar(rehacer: bool) -> None:
             continue
         await cliente.pages.create(
             parent={"type": "data_source_id", "data_source_id": ds_informes},
-            properties={
-                "Código": {"title": rich(informe.codigo)},
-                "Paciente": {"rich_text": rich(informe.paciente)},
-                "Cédula": {"rich_text": rich(informe.cedula)},
-                "Número de Póliza": {"rich_text": rich(informe.numero_poliza)},
-                "Hospital": {"select": {"name": informe.hospital}},
-                "Médico Tratante": {"rich_text": rich(informe.medico_tratante)},
-                "Especialidad": {"select": {"name": informe.especialidad}},
-                "Fecha del Informe": {"date": {"start": informe.fecha_informe.isoformat()}},
-                "Fecha Propuesta de Cirugía": {
-                    "date": {"start": informe.fecha_cirugia_propuesta.isoformat()}
-                },
-                "Es Emergencia": {"checkbox": informe.es_emergencia},
-                "Monto Cotizado": {"number": informe.monto_cotizado},
-                "Documentos Adjuntos": {
-                    "multi_select": [{"name": d} for d in informe.documentos_adjuntos]
-                },
-            },
+            properties=propiedades_informe(informe),
             # El relato clinico va en el cuerpo: rich_text tope a 2000 caracteres.
             children=parrafos(informe.texto),
         )
