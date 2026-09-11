@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronDownIcon,
   ExternalLinkIcon,
+  FileDownIcon,
   InboxIcon,
   SearchIcon,
   SearchXIcon,
@@ -9,9 +10,12 @@ import {
 import { useMemo, useState } from 'react';
 import { TarjetaDictamen } from '@/components/dictamen/TarjetaDictamen';
 import { VeredictoBadge } from '@/components/dictamen/VeredictoBadge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { demoModeEnabled } from '@/lib/demo-data';
+import { exportarDictamenPdf } from '@/lib/exportar-pdf';
 import { VEREDICTO, dinero, fechaHora, segundos } from '@/lib/formato';
 import { cn } from '@/lib/utils';
 import { listarDictamenes } from '@/services/preautorizacionService';
@@ -22,6 +26,7 @@ export function CasosPage() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroVeredicto, setFiltroVeredicto] = useState<Veredicto | null>(null);
   const dictamenes = useQuery({ queryKey: ['dictamenes'], queryFn: listarDictamenes });
+  const esDemo = demoModeEnabled();
 
   const veredictosPresentes = useMemo(() => {
     const vistos = new Set<Veredicto>();
@@ -46,9 +51,14 @@ export function CasosPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-3xl font-semibold tracking-tight">Casos resueltos</h1>
-        <p className="text-sm text-muted-foreground">
-          Pulsa una fila para ver la resolución completa.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">Pulsa una fila para ver la resolución completa.</p>
+          {esDemo && (
+            <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
+              Datos de prueba
+            </span>
+          )}
+        </div>
       </div>
 
       {dictamenes.isPending && (
@@ -222,6 +232,17 @@ function Fila({
             Ver el registro en Notion <ExternalLinkIcon className="size-3" />
           </a>
         )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => exportarDictamenPdf(registro)}
+          >
+            <FileDownIcon /> Exportar PDF
+          </Button>
+        </div>
 
         {abierto && registro.dictamen && (
           <TarjetaDictamen dictamen={registro.dictamen} msTotal={registro.msTotal || null} />
