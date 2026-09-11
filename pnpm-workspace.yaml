@@ -2,5 +2,6 @@ packages:
   - 'web'
 
 onlyBuiltDependencies:
+  - core-js
   - esbuild
   - oxlint
