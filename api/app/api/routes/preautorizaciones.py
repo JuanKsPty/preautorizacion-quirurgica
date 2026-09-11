@@ -31,7 +31,7 @@ from app.dominio.financiero import calcular_desglose
 from app.dominio.reglas import construir_expediente
 from app.dominio.veredicto import construir_chequeos, decidir
 from app.models import Preautorizacion, PreautorizacionPublic
-from app.repositorios.fabrica import obtener_repositorio
+from app.repositorios.fabrica import estado_origen, obtener_repositorio
 
 logger = logging.getLogger("app.preautorizaciones")
 
@@ -101,7 +101,7 @@ def _guardar(
                 cubierto_aseguradora=desglose.cubierto_aseguradora if desglose else 0.0,
                 a_cargo_paciente=desglose.a_cargo_paciente if desglose else 0.0,
                 ms_total=ms_total,
-                origen_datos=settings.origen_datos,
+                origen_datos=estado_origen()[0],
                 notion_url=notion_url,
                 dictamen=dictamen.model_dump(mode="json"),
             )
@@ -173,7 +173,7 @@ async def evaluar(solicitud: SolicitudEvaluacion, session: SessionDep) -> Stream
                     "folio": estado.folio,
                     "modelo": settings.anthropic_model,
                     "esfuerzo": settings.anthropic_effort,
-                    "origen_datos": settings.origen_datos,
+                    "origen_datos": estado_origen()[0],
                     "caso": {
                         "codigo_informe": informe.codigo,
                         "numero_poliza": poliza.numero,

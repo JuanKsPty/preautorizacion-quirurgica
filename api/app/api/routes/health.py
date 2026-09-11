@@ -4,6 +4,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.deps import SessionDep
+from app.repositorios.fabrica import estado_origen
 
 router = APIRouter(tags=["sistema"])
 
@@ -19,6 +20,8 @@ class HealthResponse(BaseModel):
     esfuerzo: str
     origen_datos: str
     notion_habilitado: bool
+    # Por que se esta leyendo del respaldo aunque Notion este configurado.
+    notion_error: str | None = None
 
 
 @router.get("/health", response_model=HealthResponse, summary="Estado de la API")
@@ -36,6 +39,8 @@ def health(session: SessionDep) -> HealthResponse:
         base_de_datos = f"{settings.database_kind} (sin conexion)"
         estado = "degraded"
 
+    origen, motivo = estado_origen()
+
     return HealthResponse(
         status=estado,
         app=settings.app_name,
@@ -45,6 +50,7 @@ def health(session: SessionDep) -> HealthResponse:
         ia_habilitada=settings.ia_habilitada,
         modelo=settings.anthropic_model,
         esfuerzo=settings.anthropic_effort,
-        origen_datos=settings.origen_datos,
+        origen_datos=origen,
         notion_habilitado=settings.notion_habilitado,
+        notion_error=motivo,
     )
