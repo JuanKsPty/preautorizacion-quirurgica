@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.deps import SessionDep
-from app.repositorios.fabrica import estado_origen
+from app.repositorios.fabrica import escritura_disponible, estado_origen
 
 router = APIRouter(tags=["sistema"])
 
@@ -20,6 +20,9 @@ class HealthResponse(BaseModel):
     esfuerzo: str
     origen_datos: str
     notion_habilitado: bool
+    # Si se puede crear y editar. Lo consulta la interfaz para deshabilitar
+    # el alta con una explicacion, en vez de ofrecer un formulario que va a 503.
+    escritura_habilitada: bool
     # Por que se esta leyendo del respaldo aunque Notion este configurado.
     notion_error: str | None = None
 
@@ -52,5 +55,6 @@ def health(session: SessionDep) -> HealthResponse:
         esfuerzo=settings.anthropic_effort,
         origen_datos=origen,
         notion_habilitado=settings.notion_habilitado,
+        escritura_habilitada=escritura_disponible(),
         notion_error=motivo,
     )

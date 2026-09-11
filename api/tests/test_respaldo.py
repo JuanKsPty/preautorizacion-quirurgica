@@ -156,3 +156,47 @@ def test_los_endpoints_responden_200_con_notion_caido(client: TestClient, monkey
         "/api/preautorizaciones/reglas", json={"codigo_informe": "INF-2026-0031"}
     ).json()
     assert dictamen["veredicto"] == "APROBADO"
+
+
+# ------------------------------------------------- la frontera de la escritura
+
+
+def test_el_repositorio_demo_no_sabe_escribir():
+    """
+    Si algun dia alguien le añade un `crear_informe` que lance a RepositorioDemo
+    "para uniformar la interfaz", esta prueba se pone roja — y debe ponerse.
+
+    `runtime_checkable` solo comprueba que el ATRIBUTO exista, no que funcione,
+    asi que un stub haria que este `isinstance` diera True y la puerta de la
+    escritura dejaria pasar al repositorio que no puede guardar nada.
+    """
+    from app.repositorios.base import RepositorioEscritura
+
+    assert not isinstance(RepositorioDemo(), RepositorioEscritura)
+
+
+def test_el_respaldo_tampoco_sabe_escribir():
+    """
+    `RepositorioConRespaldo` existe para servir datos locales cuando Notion
+    falla. En una escritura no hay nada local que servir, asi que no debe
+    aparecer como capaz de escribir: las escrituras lo esquivan por completo.
+    """
+    from app.repositorios.base import RepositorioEscritura
+
+    respaldo = RepositorioConRespaldo(_NotionCaido(), RepositorioDemo())
+    assert not isinstance(respaldo, RepositorioEscritura)
+
+
+def test_sin_notion_pedir_el_repositorio_de_escritura_falla_con_un_motivo():
+    from app.core.config import settings
+    from app.repositorios import fabrica
+
+    original = settings.notion_token
+    try:
+        settings.notion_token = ""  # type: ignore[misc]
+        fabrica.reiniciar_repositorio()
+        with pytest.raises(fabrica.NotionNoConfigurado, match="NOTION_TOKEN"):
+            fabrica.obtener_repositorio_escritura()
+    finally:
+        settings.notion_token = original  # type: ignore[misc]
+        fabrica.reiniciar_repositorio()

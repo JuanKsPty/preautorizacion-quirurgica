@@ -21,6 +21,7 @@ demasiado a ese techo.
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,7 +35,13 @@ from app.dominio.esquemas import (
     Poliza,
     Procedimiento,
 )
-from app.repositorios.escritura import a_multi_select, a_rich_text, parrafos
+from app.repositorios.escritura import (
+    a_multi_select,
+    a_rich_text,
+    parrafos,
+    propiedades_informe,
+    propiedades_poliza,
+)
 from app.repositorios.propiedades import (
     entero,
     fecha,
@@ -47,6 +54,16 @@ from app.repositorios.propiedades import (
 )
 
 logger = logging.getLogger("app.notion")
+
+
+class RegistroNoEncontrado(LookupError):
+    """Se pidio editar una fila que no esta en Notion."""
+
+
+# Notion acepta como mucho 100 hijos por peticion de append.
+TOPE_HIJOS = 100
+# Los codigos son INF-AAAA-NNNN y POL-AAAA-NNNN.
+PATRON_SECUENCIA = re.compile(r"^(?:INF|POL)-(\d{4})-(\d{4})$")
 
 # "Preferente" -> "preferente". Al leer aceptamos la etiqueta que se ve en Notion.
 PLAN_DESDE_NOMBRE: dict[str, str] = {v.lower(): k for k, v in NOMBRE_PLAN.items()}
@@ -66,6 +83,11 @@ class NotionRepositorio:
         )
         self._data_sources: dict[str, str] = {}
         self._candado = asyncio.Lock()
+        # Serializa generar -> comprobar -> crear. Notion no tiene restriccion
+        # de unicidad ni transacciones, asi que esto es lo unico que cierra la
+        # carrera entre dos altas simultaneas. Es por proceso: con varios
+        # workers la ventana se reabre.
+        self.candado_escritura = asyncio.Lock()
 
     @property
     def origen(self) -> str:
@@ -127,8 +149,11 @@ class NotionRepositorio:
         return [p for p in (self._a_poliza(f) for f in filas) if p is not None]
 
     async def obtener_poliza(self, numero_poliza: str) -> Poliza | None:
-        clave = numero_poliza.strip().upper()
-        return next((p for p in await self.listar_polizas() if p.numero.upper() == clave), None)
+        """Consulta filtrada en el servidor: una fila, no toda la base."""
+        fila = await self._buscar_pagina(
+            settings.notion_db_polizas, "Número de Póliza", numero_poliza.strip()
+        )
+        return self._a_poliza(fila) if fila else None
 
     async def listar_informes(self) -> list[InformeMedico]:
         filas = await self._filas(settings.notion_db_informes)
@@ -144,8 +169,17 @@ class NotionRepositorio:
         return resultado
 
     async def obtener_informe(self, codigo: str) -> InformeMedico | None:
-        clave = codigo.strip().upper()
-        return next((i for i in await self.listar_informes() if i.codigo.upper() == clave), None)
+        """
+        Una consulta filtrada mas el cuerpo de esa fila: dos llamadas.
+
+        Antes listaba la base entera y filtraba en memoria. Como `listar_informes`
+        pide el relato clinico de CADA fila, evaluar un solo caso descargaba el
+        relato de todos: 9 viajes con los 8 sembrados, creciendo con cada alta,
+        contra un limite de ~3 peticiones por segundo. Y un 429 dispara la
+        degradacion de 60 segundos, que hace desaparecer lo recien creado.
+        """
+        fila = await self._buscar_pagina(settings.notion_db_informes, "Código", codigo.strip())
+        return await self._a_informe(fila) if fila else None
 
     async def listar_procedimientos(self) -> list[Procedimiento]:
         filas = await self._filas(settings.notion_db_procedimientos)
@@ -284,3 +318,183 @@ class NotionRepositorio:
             children=hijos,
         )
         return pagina.get("url")
+
+    # ------------------------------------------------------------ busqueda
+
+    async def _filas_filtradas(
+        self, database_id: str, filtro: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Como `_filas`, pero deja el filtrado en el servidor de Notion."""
+        data_source_id = await self._data_source(database_id)
+        filas: list[dict[str, Any]] = []
+        cursor: str | None = None
+        while True:
+            pagina = await self._cliente.data_sources.query(
+                data_source_id=data_source_id,
+                filter=filtro,
+                page_size=100,
+                **({"start_cursor": cursor} if cursor else {}),
+            )
+            filas.extend(pagina.get("results", []))
+            if not pagina.get("has_more"):
+                return filas
+            cursor = pagina.get("next_cursor")
+
+    async def _buscar_pagina(
+        self, database_id: str, columna: str, valor: str
+    ) -> dict[str, Any] | None:
+        """
+        Una fila por el valor exacto de su columna titulo, en UNA peticion.
+
+        Es lo que evita el patron "lista toda la base y filtra en memoria": para
+        los informes eso ademas descargaba el relato clinico de cada fila, asi
+        que responder a un si/no costaba 1+N viajes y crecia con cada alta.
+        """
+        data_source_id = await self._data_source(database_id)
+        pagina = await self._cliente.data_sources.query(
+            data_source_id=data_source_id,
+            filter={"property": columna, "title": {"equals": valor}},
+            page_size=1,
+        )
+        resultados = pagina.get("results", [])
+        return resultados[0] if resultados else None
+
+    async def existe_informe(self, codigo: str) -> bool:
+        return (
+            await self._buscar_pagina(settings.notion_db_informes, "Código", codigo)
+        ) is not None
+
+    async def existe_poliza(self, numero: str) -> bool:
+        return (
+            await self._buscar_pagina(settings.notion_db_polizas, "Número de Póliza", numero)
+        ) is not None
+
+    # -------------------------------------------------- generacion de codigos
+
+    async def _siguiente(self, database_id: str, columna: str, prefijo: str, anio: int) -> str:
+        """
+        `max + 1` sobre lo que hay en Notion, sin reutilizar huecos.
+
+        Si existen 0031 y 0039, el siguiente es 0040 y no 0032: un codigo
+        reutilizado apuntaria a dos casos distintos en la bitacora de Postgres,
+        que guarda el codigo como texto y no distingue.
+
+        Se cuenta sobre Notion y no sobre una tabla propia a proposito: alguien
+        puede añadir una fila a mano —el seeder lo pone facil— y una secuencia
+        en Postgres se desincronizaria en silencio.
+        """
+        filas = await self._filas_filtradas(
+            database_id,
+            {"property": columna, "title": {"starts_with": f"{prefijo}-{anio}-"}},
+        )
+        mayor = 0
+        for fila in filas:
+            encontrado = PATRON_SECUENCIA.match(texto(fila.get("properties", {}), columna))
+            if encontrado and int(encontrado.group(1)) == anio:
+                mayor = max(mayor, int(encontrado.group(2)))
+        return f"{prefijo}-{anio}-{mayor + 1:04d}"
+
+    async def siguiente_codigo_informe(self, anio: int) -> str:
+        return await self._siguiente(settings.notion_db_informes, "Código", "INF", anio)
+
+    async def siguiente_numero_poliza(self, anio: int) -> str:
+        return await self._siguiente(settings.notion_db_polizas, "Número de Póliza", "POL", anio)
+
+    # ---------------------------------------------------------- cuerpo de pagina
+
+    async def _anexar(self, page_id: str, bloques: list[dict[str, Any]]) -> None:
+        """`blocks.children.append` acepta 100 hijos por peticion."""
+        for inicio in range(0, len(bloques), TOPE_HIJOS):
+            await self._cliente.blocks.children.append(
+                block_id=page_id, children=bloques[inicio : inicio + TOPE_HIJOS]
+            )
+
+    async def _vaciar_cuerpo(self, page_id: str) -> None:
+        """
+        Respaldo: borra los bloques uno a uno.
+
+        Solo se usa si la API rechaza `erase_content`. Es peor camino —los
+        borrados son secuenciales y un 429 a mitad deja la pagina con el relato
+        truncado— pero es preferible a no poder editar.
+        """
+        identificadores: list[str] = []
+        cursor: str | None = None
+        while True:
+            respuesta = await self._cliente.blocks.children.list(
+                block_id=page_id,
+                page_size=100,
+                **({"start_cursor": cursor} if cursor else {}),
+            )
+            identificadores.extend(b["id"] for b in respuesta.get("results", []))
+            if not respuesta.get("has_more"):
+                break
+            cursor = respuesta.get("next_cursor")
+        for identificador in identificadores:
+            await self._cliente.blocks.delete(block_id=identificador)
+
+    # ---------------------------------------------------------------- alta
+
+    async def crear_poliza(self, poliza: Poliza) -> str:
+        data_source_id = await self._data_source(settings.notion_db_polizas)
+        pagina = await self._cliente.pages.create(
+            parent={"type": "data_source_id", "data_source_id": data_source_id},
+            properties=propiedades_poliza(poliza),
+        )
+        return pagina.get("url", "")
+
+    async def crear_informe(self, informe: InformeMedico) -> str:
+        data_source_id = await self._data_source(settings.notion_db_informes)
+        bloques = parrafos(informe.texto)
+        pagina = await self._cliente.pages.create(
+            parent={"type": "data_source_id", "data_source_id": data_source_id},
+            properties=propiedades_informe(informe),
+            children=bloques[:TOPE_HIJOS],
+        )
+        await self._anexar(pagina["id"], bloques[TOPE_HIJOS:])
+        return pagina.get("url", "")
+
+    # --------------------------------------------------------------- edicion
+
+    async def actualizar_poliza(self, numero: str, poliza: Poliza) -> str:
+        pagina = await self._buscar_pagina(settings.notion_db_polizas, "Número de Póliza", numero)
+        if pagina is None:
+            raise RegistroNoEncontrado(f"No existe la póliza {numero}")
+        # Sin `erase_content`: una poliza no tiene cuerpo en nuestro modelo, pero
+        # una persona puede haber escrito notas en la pagina. Borrarlas seria una
+        # eliminacion que nadie pidio.
+        actualizada = await self._cliente.pages.update(
+            page_id=pagina["id"], properties=propiedades_poliza(poliza)
+        )
+        return actualizada.get("url", "")
+
+    async def actualizar_informe(self, codigo: str, informe: InformeMedico) -> str:
+        """
+        Reemplaza propiedades y relato.
+
+        `erase_content=True` vacia el cuerpo en el servidor, de forma atomica, y
+        deja el trabajo en dos peticiones en vez de una por bloque. Si la API lo
+        rechaza se cae al borrado bloque a bloque: el parametro esta en la lista
+        del SDK pero no se ha podido confirmar contra Notion en vivo, y quedarse
+        sin poder editar seria peor que hacerlo por el camino lento.
+        """
+        pagina = await self._buscar_pagina(settings.notion_db_informes, "Código", codigo)
+        if pagina is None:
+            raise RegistroNoEncontrado(f"No existe el informe {codigo}")
+
+        propiedades = propiedades_informe(informe)
+        try:
+            actualizada = await self._cliente.pages.update(
+                page_id=pagina["id"], properties=propiedades, erase_content=True
+            )
+        except Exception as error:
+            logger.warning(
+                "Notion no aceptó erase_content (%s); se vacía el cuerpo bloque a bloque.",
+                error,
+            )
+            actualizada = await self._cliente.pages.update(
+                page_id=pagina["id"], properties=propiedades
+            )
+            await self._vaciar_cuerpo(pagina["id"])
+
+        await self._anexar(pagina["id"], parrafos(informe.texto))
+        return actualizada.get("url", "")
