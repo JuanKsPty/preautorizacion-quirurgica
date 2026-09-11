@@ -227,7 +227,7 @@ export function EvaluarPage() {
                             scroll cae dentro de ese hueco, en vez de pegada a
                             la esquina redondeada de la caja. La caja misma
                             mide igual que sus hermanas (documentos, datos). */}
-                        <p className="scroll-fino min-h-24 flex-1 overflow-y-auto rounded-lg bg-background py-3 pr-5 pl-3 text-sm whitespace-pre-wrap">
+                        <p className="scroll-fino min-h-24 flex-1 overflow-y-auto rounded-lg bg-background py-3 pr-12 pl-3 text-sm whitespace-pre-wrap">
                           {seleccionado.texto}
                         </p>
                       </div>
