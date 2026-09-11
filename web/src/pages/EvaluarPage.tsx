@@ -102,26 +102,32 @@ export function EvaluarPage() {
                 {informes.isPending ? (
                   <Skeleton className="h-10 w-full" />
                 ) : (
-                  <select
-                    id="informe"
-                    aria-label="Informe médico recibido del hospital"
-                    value={codigo}
-                    disabled={evaluando}
-                    onChange={(evento) => {
-                      setCodigo(evento.target.value);
-                      setVerRelato(false);
-                      reiniciar();
-                    }}
-                    className="h-10 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
-                  >
-                    <option value="">Selecciona un informe…</option>
-                    {informes.data?.map((informe) => (
-                      <option key={informe.codigo} value={informe.codigo}>
-                        {informe.codigo} — {informe.paciente} — {informe.especialidad}
-                        {informe.esEmergencia ? ' (urgencia)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      id="informe"
+                      aria-label="Informe médico recibido del hospital"
+                      value={codigo}
+                      disabled={evaluando}
+                      onChange={(evento) => {
+                        setCodigo(evento.target.value);
+                        setVerRelato(false);
+                        reiniciar();
+                      }}
+                      className="h-10 w-full appearance-none rounded-lg border border-input bg-background px-3 pr-9 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                    >
+                      <option value="">Selecciona un informe…</option>
+                      {informes.data?.map((informe) => (
+                        <option key={informe.codigo} value={informe.codigo}>
+                          {informe.codigo} — {informe.paciente} — {informe.especialidad}
+                          {informe.esEmergencia ? ' (urgencia)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon
+                      className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden
+                    />
+                  </div>
                 )}
 
                 {informes.isError && (
@@ -196,9 +202,12 @@ export function EvaluarPage() {
                           Relato clínico en texto libre
                         </button>
                         {verRelato && (
-                          <p className="mt-2 max-h-72 overflow-y-auto rounded-lg bg-background p-3 text-sm whitespace-pre-wrap">
-                            {seleccionado.texto}
-                          </p>
+                          <div className="flex min-h-24 max-h-72 rounded-lg bg-background">
+                            <p className="scroll-fino mt-2 mb-2 min-w-0 flex-1 overflow-y-auto py-1 pr-2 pl-4 text-sm whitespace-pre-wrap">
+                              {seleccionado.texto}
+                            </p>
+                            <div className="w-5 shrink-0" aria-hidden />
+                          </div>
                         )}
                       </div>
                     </div>

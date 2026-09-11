@@ -32,6 +32,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      core-js:
+        specifier: 3.50.0
+        version: 3.50.0
       framer-motion:
         specifier: ^13.2.0
         version: 13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -5014,8 +5017,7 @@ snapshots:
 
   cookie@0.7.2: {}
 
-  core-js@3.50.0:
-    optional: true
+  core-js@3.50.0: {}
 
   cors@2.8.6:
     dependencies:
