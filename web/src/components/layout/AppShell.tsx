@@ -1,15 +1,25 @@
 import { Outlet } from 'react-router';
 import { BarraMovil, Sidebar } from '@/components/layout/Sidebar';
+import GlowHorizonFM from '@/components/ui/glow-horizon';
 import { project } from '@/lib/project';
+
+function GlowHorizonLayer() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-10 opacity-[0.12] transition-opacity duration-500" aria-hidden>
+      <GlowHorizonFM variant="top" />
+    </div>
+  );
+}
 
 export function AppShell() {
   return (
     <div className="bg-background text-foreground">
+      <GlowHorizonLayer />
       <Sidebar />
 
       {/* La columna ocupa la altura de la pantalla como minimo, asi el pie
           queda abajo del todo aunque la pagina tenga poco contenido. */}
-      <div className="flex min-h-dvh flex-col lg:pl-60">
+      <div className="flex min-h-dvh flex-col lg:pl-[260px]">
         <BarraMovil />
 
         {/* flex para que una pagina pueda pedir el alto disponible con h-full
