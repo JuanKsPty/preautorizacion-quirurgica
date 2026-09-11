@@ -92,6 +92,21 @@ def test_no_se_reintenta_notion_en_cada_peticion(con_respaldo):
     assert caido.intentos == 1
 
 
+def test_pasada_la_espera_se_vuelve_a_probar_notion(con_respaldo, monkeypatch):
+    """
+    Sin esta reapertura, conectar la integracion en Notion no surtiria efecto
+    hasta redesplegar — y nadie relacionaria una cosa con la otra.
+    """
+    caido = con_respaldo._primario
+    asyncio.run(con_respaldo.listar_polizas())
+    assert caido.intentos == 1
+
+    # Se simula que paso el tiempo de espera.
+    monkeypatch.setattr(type(con_respaldo), "ESPERA_REINTENTO", 0.0)
+    asyncio.run(con_respaldo.listar_polizas())
+    assert caido.intentos == 2, "deberia haber reintentado el primario"
+
+
 def test_se_puede_rehabilitar_notion_sin_reiniciar(con_respaldo):
     asyncio.run(con_respaldo.listar_polizas())
     con_respaldo.reintentar_primario()

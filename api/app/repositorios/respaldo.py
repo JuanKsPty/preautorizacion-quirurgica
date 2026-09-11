@@ -13,6 +13,7 @@ tiempo de ejecucion, y no solo en el arranque. Recuerda el ultimo fallo para que
 """
 
 import logging
+import time
 from typing import Any
 
 from app.dominio.esquemas import Dictamen, InformeMedico, Poliza, Procedimiento
@@ -24,31 +25,45 @@ logger = logging.getLogger("app.repositorios")
 class RepositorioConRespaldo:
     """Intenta el primario; ante cualquier fallo de lectura, usa el respaldo."""
 
+    # Tras degradar, cuanto se espera antes de volver a probar el primario.
+    # No es un numero arbitrario: es lo que tarda alguien en conectar la
+    # integracion en Notion al leer el error. Sin esta reapertura, arreglar el
+    # permiso no surtiria efecto hasta redesplegar, y nadie lo relacionaria.
+    ESPERA_REINTENTO = 60.0
+
     def __init__(self, primario: RepositorioClinico, respaldo: RepositorioClinico) -> None:
         self._primario = primario
         self._respaldo = respaldo
-        self._degradado = False
+        self._degradado_en: float | None = None
         self.ultimo_error: str | None = None
+
+    @property
+    def degradado(self) -> bool:
+        return self._degradado_en is not None
 
     @property
     def origen(self) -> str:
         """El origen REAL de los datos, no el configurado."""
-        return self._respaldo.origen if self._degradado else self._primario.origen
+        return self._respaldo.origen if self.degradado else self._primario.origen
 
-    @property
-    def degradado(self) -> bool:
-        return self._degradado
+    def _toca_reintentar(self) -> bool:
+        if self._degradado_en is None:
+            return True
+        return (time.monotonic() - self._degradado_en) >= self.ESPERA_REINTENTO
 
     async def _intentar(self, metodo: str, *args: Any) -> Any:
-        if not self._degradado:
+        if self._toca_reintentar():
             try:
                 resultado = await getattr(self._primario, metodo)(*args)
                 # Una lectura correcta rehabilita el primario: si Notion vuelve,
                 # se vuelve a leer de Notion sin reiniciar nada.
+                if self.degradado:
+                    logger.info("Notion volvió a responder; se reanuda la lectura real.")
+                self._degradado_en = None
                 self.ultimo_error = None
                 return resultado
             except Exception as error:
-                self._degradado = True
+                self._degradado_en = time.monotonic()
                 self.ultimo_error = str(error).split("\n")[0][:300]
                 logger.warning(
                     "Notion falló en %s; se usan los datos locales. Motivo: %s",
@@ -58,8 +73,8 @@ class RepositorioConRespaldo:
         return await getattr(self._respaldo, metodo)(*args)
 
     def reintentar_primario(self) -> None:
-        """Vuelve a probar Notion en la siguiente lectura."""
-        self._degradado = False
+        """Vuelve a probar Notion en la siguiente lectura, sin esperar."""
+        self._degradado_en = None
         self.ultimo_error = None
 
     async def listar_polizas(self) -> list[Poliza]:
@@ -82,7 +97,7 @@ class RepositorioConRespaldo:
         La escritura es best-effort y NO degrada la lectura: que no se pueda
         escribir el dictamen en Notion no dice nada sobre si se puede leer.
         """
-        if self._degradado:
+        if self.degradado:
             return None
         try:
             return await self._primario.registrar_dictamen(dictamen)
