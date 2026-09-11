@@ -49,6 +49,7 @@ interface EstiloVeredicto {
   glosa: string;
   clases: string;
   punto: string;
+  texto: string;
 }
 
 export const VEREDICTO: Record<Veredicto, EstiloVeredicto> = {
@@ -57,30 +58,35 @@ export const VEREDICTO: Record<Veredicto, EstiloVeredicto> = {
     glosa: 'La cirugía queda pre-autorizada.',
     clases: 'bg-exito-fondo text-exito',
     punto: 'bg-exito',
+    texto: 'text-exito',
   },
   APROBADO_CON_CONDICIONES: {
     etiqueta: 'Aprobado con condiciones',
     glosa: 'Procede, pero con salvedades sobre el monto que cubre la aseguradora.',
     clases: 'bg-alerta-fondo text-alerta',
     punto: 'bg-alerta',
+    texto: 'text-alerta',
   },
   DOCUMENTOS_FALTANTES: {
     etiqueta: 'Faltan documentos',
     glosa: 'No se puede resolver todavía: falta documentación del expediente.',
     clases: 'bg-info-fondo text-info',
     punto: 'bg-info',
+    texto: 'text-info',
   },
   REVISION_MEDICA: {
     etiqueta: 'Revisión médica',
     glosa: 'Pasa a un auditor médico humano. No es un rechazo.',
     clases: 'bg-revision-fondo text-revision',
     punto: 'bg-revision',
+    texto: 'text-revision',
   },
   RECHAZADO: {
     etiqueta: 'Rechazado',
     glosa: 'No procede según las condiciones de la póliza.',
     clases: 'bg-rechazo-fondo text-rechazo',
     punto: 'bg-rechazo',
+    texto: 'text-rechazo',
   },
 };
 

@@ -1,14 +1,47 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRightIcon, CheckCircle2Icon, CircleAlertIcon, DatabaseIcon } from 'lucide-react';
+import {
+  ArrowRightIcon,
+  CheckCircle2Icon,
+  CircleAlertIcon,
+  CircleSlashIcon,
+  DatabaseIcon,
+  FileTextIcon,
+  GaugeIcon,
+  ShieldCheckIcon,
+  StethoscopeIcon,
+  TimerIcon,
+} from 'lucide-react';
+import { useMemo } from 'react';
 import { Link } from 'react-router';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VEREDICTO, dinero, segundos } from '@/lib/formato';
+import { cn } from '@/lib/utils';
 import { listarInformes, listarProcedimientos } from '@/services/catalogoService';
 import { getHealth } from '@/services/systemService';
 import { listarDictamenes } from '@/services/preautorizacionService';
-import { project } from '@/lib/project';
+import type { Veredicto } from '@/types/api';
+
+const APROBATORIOS: Veredicto[] = ['APROBADO', 'APROBADO_CON_CONDICIONES'];
+
+/** Orden fijo: el color de un veredicto no cambia porque cambie el filtro. */
+const ORDEN: Veredicto[] = [
+  'APROBADO',
+  'APROBADO_CON_CONDICIONES',
+  'DOCUMENTOS_FALTANTES',
+  'REVISION_MEDICA',
+  'RECHAZADO',
+];
+
+/** El color de estado nunca viaja solo: cada veredicto lleva su icono. */
+const ICONO: Record<Veredicto, typeof CheckCircle2Icon> = {
+  APROBADO: CheckCircle2Icon,
+  APROBADO_CON_CONDICIONES: CircleAlertIcon,
+  DOCUMENTOS_FALTANTES: FileTextIcon,
+  REVISION_MEDICA: StethoscopeIcon,
+  RECHAZADO: CircleSlashIcon,
+};
 
 export function PanelPage() {
   const salud = useQuery({ queryKey: ['health'], queryFn: getHealth });
@@ -16,73 +49,213 @@ export function PanelPage() {
   const procedimientos = useQuery({ queryKey: ['procedimientos'], queryFn: listarProcedimientos });
   const dictamenes = useQuery({ queryKey: ['dictamenes'], queryFn: listarDictamenes });
 
+  const metricas = useMemo(() => {
+    const registros = dictamenes.data ?? [];
+    const conTiempo = registros.filter((registro) => registro.msTotal > 0);
+    const aprobados = registros.filter((registro) => APROBATORIOS.includes(registro.veredicto));
+
+    const cubierto = registros.reduce((suma, registro) => suma + registro.cubiertoAseguradora, 0);
+    const paciente = registros.reduce((suma, registro) => suma + registro.aCargoPaciente, 0);
+
+    return {
+      total: registros.length,
+      aprobados: aprobados.length,
+      tasa: registros.length > 0 ? (aprobados.length / registros.length) * 100 : 0,
+      msMedio:
+        conTiempo.length > 0
+          ? conTiempo.reduce((suma, registro) => suma + registro.msTotal, 0) / conTiempo.length
+          : null,
+      cubierto,
+      paciente,
+      reparto: ORDEN.map((veredicto) => ({
+        veredicto,
+        cantidad: registros.filter((registro) => registro.veredicto === veredicto).length,
+      })).filter((entrada) => entrada.cantidad > 0),
+    };
+  }, [dictamenes.data]);
+
+  const hayCasos = metricas.total > 0;
+
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-        <p className="max-w-2xl text-muted-foreground">
-          Hoy un paciente espera horas o días a que su seguro autorice una cirugía. Aquí el
-          informe médico del hospital y la póliza de la aseguradora entran por un agente que
-          resuelve en segundos: dice si el procedimiento está cubierto, si se cumple la carencia,
-          cuánto paga cada parte y, si falta algo, exactamente qué falta.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-1">
-          <Button asChild>
+    <div className="space-y-4">
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-3xl font-semibold tracking-tight">Resumen operativo</h1>
+        <div className="flex flex-wrap gap-2">
+          <Button size="lg" asChild>
             <Link to="/evaluar">
               Evaluar una solicitud <ArrowRightIcon />
             </Link>
           </Button>
-          <Button variant="outline" asChild>
-            <Link to="/reglas">Ver las reglas publicadas</Link>
+          <Button size="lg" variant="outline" asChild>
+            <Link to="/casos">Ver historial</Link>
           </Button>
         </div>
       </section>
 
-      {/* El metodo, con las cifras reales del sistema en cada paso. No son tres
-          tarjetas de icono y titulo: cada paso ensena el artefacto que produce. */}
-      <section className="space-y-4">
-        <h2 className="text-lg font-medium">Cómo resuelve un caso</h2>
-        <ol className="grid gap-4 md:grid-cols-3">
-          <Paso
-            numero={1}
-            titulo="Lee el informe en texto libre"
-            detalle="El médico escribe prosa: «extirpación de la vesícula por vía laparoscópica». El agente extrae el diagnóstico, su código CIE-10, el procedimiento y la urgencia."
-            cifra={informes.data ? `${informes.data.length} informes cargados` : undefined}
-            cargando={informes.isPending}
-          />
-          <Paso
-            numero={2}
-            titulo="Lo mapea al catálogo"
-            detalle="Esa prosa se convierte en un código CPT del catálogo de la aseguradora, con su carencia por plan, su porcentaje de cobertura y los documentos que exige."
-            cifra={
-              procedimientos.data ? `${procedimientos.data.length} procedimientos` : undefined
-            }
-            cargando={procedimientos.isPending}
-          />
-          <Paso
-            numero={3}
-            titulo="Aplica las condiciones y resuelve"
-            detalle="Vigencia, carencia, cobertura, preexistencias, documentos y el reparto del costo se calculan en el servidor, no los estima el modelo. El veredicto sale de esas reglas."
-            cifra={
-              dictamenes.data ? `${dictamenes.data.length} dictámenes emitidos` : undefined
-            }
-            cargando={dictamenes.isPending}
-          />
-        </ol>
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metrica
+          icono={<FileTextIcon className="size-4" />}
+          etiqueta="Casos resueltos"
+          valor={dictamenes.isPending ? null : String(metricas.total)}
+        />
+        <Metrica
+          icono={<ShieldCheckIcon className="size-4" />}
+          etiqueta="Tasa de aprobación"
+          valor={dictamenes.isPending ? null : `${metricas.tasa.toFixed(0)}%`}
+          pie={`${metricas.aprobados} de ${metricas.total}`}
+          acento="exito"
+        />
+        <Metrica
+          icono={<TimerIcon className="size-4" />}
+          etiqueta="Tiempo medio"
+          valor={
+            dictamenes.isPending
+              ? null
+              : metricas.msMedio !== null
+                ? segundos(metricas.msMedio)
+                : '—'
+          }
+        />
+        <Metrica
+          icono={<GaugeIcon className="size-4" />}
+          etiqueta="Monto gestionado"
+          valor={dictamenes.isPending ? null : dinero(metricas.cubierto + metricas.paciente)}
+        />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-3 lg:grid-cols-5">
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Reparto de veredictos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {dictamenes.isPending && <Skeleton className="h-40 w-full" />}
+            {dictamenes.data && !hayCasos && <SinDatos />}
+            {hayCasos && (
+              <ul className="space-y-2.5">
+                {metricas.reparto.map(({ veredicto, cantidad }) => {
+                  const porcentaje = (cantidad / metricas.total) * 100;
+                  const Icono = ICONO[veredicto];
+                  return (
+                    <li key={veredicto} className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Icono
+                          className={cn('size-4 shrink-0', VEREDICTO[veredicto].texto)}
+                          aria-hidden
+                        />
+                        <span className="min-w-0 truncate">{VEREDICTO[veredicto].etiqueta}</span>
+                        <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+                          {cantidad} · {porcentaje.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn('h-full rounded-full', VEREDICTO[veredicto].punto)}
+                          style={{ width: `${porcentaje}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Reparto económico</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-3">
+            {dictamenes.isPending && <Skeleton className="h-40 w-full" />}
+            {dictamenes.data && !hayCasos && <SinDatos />}
+            {hayCasos && (
+              <>
+                <div>
+                  <p className="text-3xl font-semibold tracking-tight tabular-nums text-exito">
+                    {((metricas.cubierto / (metricas.cubierto + metricas.paciente)) * 100).toFixed(
+                      0
+                    )}
+                    %
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    del monto gestionado lo asume la aseguradora
+                  </p>
+                </div>
+
+                {/* Dos segmentos con 2px de aire entre ellos, para que se lean
+                    como dos cantidades y no como una barra partida. */}
+                <div className="mt-auto flex h-3 w-full gap-0.5">
+                  <div
+                    className="rounded-full bg-exito"
+                    style={{
+                      width: `${(metricas.cubierto / (metricas.cubierto + metricas.paciente)) * 100}%`,
+                    }}
+                  />
+                  <div
+                    className="rounded-full bg-foreground/25"
+                    style={{
+                      width: `${(metricas.paciente / (metricas.cubierto + metricas.paciente)) * 100}%`,
+                    }}
+                  />
+                </div>
+                <dl className="space-y-3">
+                  <Cifra
+                    punto="bg-exito"
+                    etiqueta="Cubre la aseguradora"
+                    valor={dinero(metricas.cubierto)}
+                    acento
+                  />
+                  <Cifra
+                    punto="bg-foreground/25"
+                    etiqueta="A cargo del paciente"
+                    valor={dinero(metricas.paciente)}
+                  />
+                </dl>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-3 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Cómo resuelve un caso</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="grid items-stretch gap-4 sm:grid-cols-3">
+              <Paso
+                numero={1}
+                titulo="Lee el informe"
+                detalle="Prosa médica en texto libre."
+                cifra={informes.data ? `${informes.data.length} informes` : undefined}
+              />
+              <Paso
+                numero={2}
+                titulo="Lo mapea al catálogo"
+                detalle="Código CPT, carencia y cobertura."
+                cifra={
+                  procedimientos.data ? `${procedimientos.data.length} procedimientos` : undefined
+                }
+              />
+              <Paso
+                numero={3}
+                titulo="Aplica las condiciones"
+                detalle="El veredicto sale de las reglas, no del modelo."
+                cifra={dictamenes.data ? `${dictamenes.data.length} dictámenes` : undefined}
+              />
+            </ol>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Estado del sistema</CardTitle>
+            <CardTitle>Estado del sistema</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             {salud.isPending && <Skeleton className="h-24 w-full" />}
-            {salud.isError && (
-              <p className="text-rechazo">
-                La API no responde. El frontend está servido, pero no hay backend detrás.
-              </p>
-            )}
+            {salud.isError && <p className="text-rechazo">La API no responde.</p>}
             {salud.data && (
               <>
                 <Fila
@@ -90,83 +263,98 @@ export function PanelPage() {
                   valor={`${salud.data.status} · ${salud.data.latencyMs} ms`}
                   ok={salud.data.status === 'ok'}
                 />
-                <Fila etiqueta="Base de datos" valor={salud.data.database} ok={salud.data.database.includes('conectada')} />
+                <Fila
+                  etiqueta="Base de datos"
+                  valor={
+                    salud.data.database.includes('conectada') ? 'conectada' : salud.data.database
+                  }
+                  ok={salud.data.database.includes('conectada')}
+                />
                 <Fila
                   etiqueta="Modelo"
-                  valor={
-                    salud.data.iaHabilitada
-                      ? `${salud.data.modelo} · esfuerzo ${salud.data.esfuerzo}`
-                      : 'sin clave configurada'
-                  }
+                  valor={salud.data.iaHabilitada ? salud.data.modelo : 'sin clave'}
                   ok={salud.data.iaHabilitada}
                 />
                 <Fila
-                  etiqueta="Origen de los datos"
-                  valor={
-                    salud.data.origenDatos === 'notion'
-                      ? 'base de datos de Notion'
-                      : 'datos de demostración locales'
-                  }
+                  etiqueta="Origen"
+                  valor={salud.data.origenDatos === 'notion' ? 'Notion' : 'demostración'}
                   ok={salud.data.origenDatos === 'notion'}
                   icono={<DatabaseIcon className="size-4" />}
                 />
-                {!salud.data.iaHabilitada && (
-                  <p className="rounded-md bg-alerta-fondo p-3 text-xs text-alerta">
-                    Sin <code>ANTHROPIC_API_KEY</code> el agente no puede razonar, pero el motor
-                    de reglas sigue emitiendo el mismo veredicto con las mismas cifras.
-                  </p>
-                )}
               </>
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Por qué el dictamen es auditable</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              <strong className="text-foreground">El modelo no calcula.</strong> Los días de
-              carencia, el deducible, el coaseguro y el tope se computan en el servidor, en
-              centavos enteros, y se le entregan al agente como herramientas.
-            </p>
-            <p>
-              <strong className="text-foreground">El modelo no elige el veredicto.</strong> Lo
-              decide la precedencia de las condiciones de la póliza. Si el agente escribe otro,
-              la emisión se rechaza.
-            </p>
-            <p>
-              <strong className="text-foreground">Ninguna cifra se inventa.</strong> Toda
-              cantidad en balboas de la resolución tiene que haber salido de una herramienta; si
-              no, no se emite.
-            </p>
-            <p>
-              Y el proceso se ve entero: cada herramienta con sus argumentos y su resultado, para
-              poder rastrear cualquier número hasta su origen.
-            </p>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium">Los ocho casos de la demostración</h2>
-        <p className="text-sm text-muted-foreground">
-          Cada informe cargado recorre un camino distinto: aprobación limpia, carencia
-          incumplida, exclusión estética, expediente incompleto, preexistencia sin declarar,
-          urgencia que exonera la carencia, suma asegurada insuficiente y póliza en mora.
-        </p>
-        {informes.data && (
-          <div className="flex flex-wrap gap-2">
-            {informes.data.map((informe) => (
-              <Badge key={informe.codigo} variant="outline" className="font-mono">
-                {informe.codigo}
-              </Badge>
-            ))}
-          </div>
-        )}
       </section>
     </div>
+  );
+}
+
+function SinDatos() {
+  return (
+    <p className="py-10 text-center text-sm text-muted-foreground">
+      Todavía no hay dictámenes que resumir.
+    </p>
+  );
+}
+
+function Cifra({
+  punto,
+  etiqueta,
+  valor,
+  acento,
+}: {
+  punto: string;
+  etiqueta: string;
+  valor: string;
+  acento?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn('size-2 shrink-0 rounded-full', punto)} aria-hidden />
+      <dt className="min-w-0 truncate text-sm text-muted-foreground">{etiqueta}</dt>
+      <dd className={cn('ml-auto tabular-nums', acento ? 'font-medium text-exito' : 'font-medium')}>
+        {valor}
+      </dd>
+    </div>
+  );
+}
+
+function Metrica({
+  icono,
+  etiqueta,
+  valor,
+  pie,
+  acento,
+}: {
+  icono: React.ReactNode;
+  etiqueta: string;
+  valor: string | null;
+  pie?: string;
+  acento?: 'exito';
+}) {
+  return (
+    <Card>
+      <CardContent className="space-y-1.5">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          {icono}
+          <span className="text-xs font-medium">{etiqueta}</span>
+        </div>
+        {valor === null ? (
+          <Skeleton className="h-8 w-24" />
+        ) : (
+          <p
+            className={cn(
+              'text-2xl font-semibold tracking-tight tabular-nums',
+              acento === 'exito' && 'text-exito'
+            )}
+          >
+            {valor}
+          </p>
+        )}
+        {pie && <p className="text-xs text-muted-foreground">{pie}</p>}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -175,27 +363,25 @@ function Paso({
   titulo,
   detalle,
   cifra,
-  cargando,
 }: {
   numero: number;
   titulo: string;
   detalle: string;
   cifra?: string;
-  cargando: boolean;
 }) {
   return (
-    <li className="space-y-2 rounded-lg border p-4">
-      <p className="text-sm font-medium">
-        <span className="mr-2 inline-flex size-6 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+    // Columna con la cifra empujada abajo: los tres pasos alinean su ultima
+    // linea aunque el texto de cada uno ocupe distinto numero de renglones.
+    <li className="flex h-full flex-col gap-1.5">
+      <p className="flex items-center gap-2.5 text-sm font-medium">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-accent text-xs font-semibold text-accent-foreground">
           {numero}
         </span>
         {titulo}
       </p>
       <p className="text-sm text-muted-foreground">{detalle}</p>
-      {cargando ? (
-        <Skeleton className="h-4 w-28" />
-      ) : (
-        cifra && <p className="text-xs font-medium tabular-nums">{cifra}</p>
+      {cifra && (
+        <p className="mt-auto pt-1 text-xs font-medium tabular-nums text-primary">{cifra}</p>
       )}
     </li>
   );
@@ -213,7 +399,7 @@ function Fila({
   icono?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex items-center justify-between gap-3">
       <span className="flex items-center gap-2 text-muted-foreground">
         {icono}
         {etiqueta}
