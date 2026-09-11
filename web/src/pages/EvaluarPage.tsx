@@ -220,10 +220,14 @@ export function EvaluarPage() {
                       {/* El relato ocupa lo que sobre y hace scroll por dentro,
                           asi la tarjeta mide igual con todos los informes. */}
                       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Relato clínico en texto libre
                         </p>
-                        <p className="scroll-fino mr-6 mb-1 min-h-24 flex-1 overflow-y-auto rounded-lg bg-background p-3 text-sm whitespace-pre-wrap">
+                        {/* pr mas grande que el resto del padding: la barra de
+                            scroll cae dentro de ese hueco, en vez de pegada a
+                            la esquina redondeada de la caja. La caja misma
+                            mide igual que sus hermanas (documentos, datos). */}
+                        <p className="scroll-fino min-h-24 flex-1 overflow-y-auto rounded-lg bg-background py-3 pr-5 pl-3 text-sm whitespace-pre-wrap">
                           {seleccionado.texto}
                         </p>
                       </div>
