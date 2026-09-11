@@ -1,7 +1,7 @@
 packages:
   - 'web'
 
-onlyBuiltDependencies:
-  - core-js
-  - esbuild
-  - oxlint
+allowBuilds:
+  core-js: true
+  esbuild: true
+  oxlint: true
