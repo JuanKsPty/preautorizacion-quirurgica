@@ -51,7 +51,7 @@ Tres cosas que se hacen cumplir en codigo, no en el prompt, y que **no se relaja
 | Una herramienta nueva del agente | `api/app/agente/herramientas.py`: definicion en `HERRAMIENTAS` y rama en `ejecutar_herramienta` |
 | Un endpoint nuevo | `api/app/api/routes/<tema>.py` + registrarlo en `api/app/api/router.py` |
 | Una tabla nueva | `api/app/models/<entidad>.py` (tabla + `*Public` juntos) + exportarla en `api/app/models/__init__.py` |
-| Una columna nueva de Notion | `api/app/repositorios/notion.py` (extractor) **y** `scripts/sembrar_notion.py` (escritura) |
+| Una columna nueva de Notion | `api/app/repositorios/propiedades.py` o `notion.py` (leer) **y** `api/app/repositorios/escritura.py` (escribir). El seeder importa de ahi, asi que no hay que tocarlo |
 | Una pantalla nueva | `web/src/pages/<Nombre>Page.tsx` + ruta en `web/src/App.tsx` + enlace en `Navbar.tsx` |
 | Llamar a la API | Un modulo en `web/src/services/`, nunca `fetch` dentro de un componente |
 | Un tipo de la API | `web/src/types/api.ts` (DTO en snake_case + modelo de dominio en camelCase) |
@@ -77,6 +77,29 @@ Tres cosas que se hacen cumplir en codigo, no en el prompt, y que **no se relaja
   color. Los tokens estan en `web/src/index.css` y se consumen como `bg-exito-fondo text-exito`.
 
 ## Decisiones ya tomadas (no re-discutir)
+
+- **Escribir NO tiene respaldo.** La lectura degrada a los datos locales cuando
+  Notion falla; la escritura no, y `RepositorioDemo` no recibe metodos de
+  escritura ni siquiera como stubs que lancen: `runtime_checkable` solo
+  comprueba que el atributo exista, asi que un stub haria que
+  `isinstance(demo, RepositorioEscritura)` diera True. Guardar en un sitio que
+  se pierde al reiniciar es peor que no guardar.
+- **Los nombres de columna de Notion viven en UN sitio**: `escritura.py` para
+  escribir, `propiedades.py`/`notion.py` para leer. Los helpers de escritura
+  llevan prefijo `a_` porque hay funciones homonimas que leen.
+- **La API de Notion es asimetrica**: al escribir un title/rich_text se manda
+  `{"text": {"content"}}`, pero al leerlo devuelve ADEMAS `plain_text`, que es
+  el campo que usan los extractores. `tests/test_escritura.py` lo modela.
+- **`update_markdown` no se usa** para reescribir el relato: da la vuelta por
+  Markdown y un texto con guiones o numeracion vuelve como `bulleted_list_item`,
+  que `_cuerpo()` no lee. Se usa `erase_content` + `append`, con respaldo.
+- **Una escritura correcta reabre la lectura** (`notificar_escritura_exitosa`):
+  si no, un registro recien creado no aparece durante los 60 s de degradacion.
+- **El dinero en el frontend nunca es `type="number"`** y `fechaInput` nunca usa
+  `toISOString()` (convierte a UTC y en Panama devuelve el dia anterior).
+- **Los formularios producen el DTO directamente**, en snake_case: traducir a
+  camelCase para volver a traducir al enviar solo añade sitios donde
+  equivocarse. Misma decision que con `Dictamen`.
 
 - **El dinero se calcula en centavos enteros** (`dominio/financiero.py`). Con `float` el resultado
   sale bien al centavo pero el invariante `paciente + aseguradora == cotizado` deja de

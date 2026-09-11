@@ -127,6 +127,44 @@ aritmética difícil ya la hacen las herramientas, así que el modelo no necesit
 
 ---
 
+## Dar de alta un caso
+
+El expediente no es de solo lectura: desde `/expediente` se crean y editan las
+pólizas de la aseguradora y los informes que manda el hospital, y todo se escribe
+en Notion.
+
+La pantalla de alta de informes es la que mejor enseña lo que hace el modelo: se
+**pega el informe tal como llegó** y el agente lo ordena — paciente, cédula,
+hospital, médico, fechas, monto y documentos. Cada campo que propone queda
+marcado, y la marca se borra al tocarlo: revisar un campo es aceptarlo, así que
+de un vistazo se ve lo que falta por mirar.
+
+Tres cosas que no son texto libre, y no por comodidad:
+
+- **La póliza es un selector.** Toda la evaluación cuelga de que ese número case
+  con una póliza real, así que un texto libre produciría informes que fallan al
+  *evaluarse* — mucho más tarde y más confuso que fallar al guardarse.
+- **Los documentos se ajustan al catálogo**, con aviso. El motor compara cadenas
+  normalizadas, así que «Estudio de imagenes» sin tilde cambiaría el veredicto a
+  `DOCUMENTOS_FALTANTES` sin ningún error a la vista.
+- **El dinero entra como texto.** Con `type="number"` la rueda del ratón cambia
+  el valor en un formulario que trata de dinero, y pegar `12,500.00` deja el
+  campo vacío sin explicar por qué.
+
+### Escribir exige Notion
+
+La lectura tiene respaldo local; **la escritura no**, a propósito. Guardar en un
+sitio que se pierde al reiniciar sería peor que no guardar: quien lo hizo se
+marcharía creyendo que su registro existe. Si Notion no está accesible, los
+botones de guardar se ven pero están deshabilitados y explican por qué — no se
+esconden, porque quien busca «crear un informe» y no encuentra el botón concluye
+que la función no existe, no que le falta un permiso.
+
+La extracción con IA **sí** funciona sin Notion, así que se puede seguir
+demostrando aunque la base no responda.
+
+---
+
 ## Tecnologías
 
 | Capa | Herramientas |
@@ -220,6 +258,9 @@ Todo cuelga de `/api` y está documentado en [`/api/docs`](http://localhost:8000
 | `GET` | `/api/polizas` · `/api/polizas/{numero}` | Pólizas |
 | `GET` | `/api/informes` · `/api/informes/{codigo}` | Informes médicos con su relato clínico |
 | `GET` | `/api/procedimientos` | Catálogo con carencias, coberturas y exclusiones |
+| `POST` | `/api/informes/extraer` | **Lee un informe en texto libre** y propone los campos del formulario |
+| `POST` · `PUT` | `/api/informes` · `/api/informes/{codigo}` | Crear y editar informes en Notion |
+| `POST` · `PUT` | `/api/polizas` · `/api/polizas/{numero}` | Crear y editar pólizas en Notion |
 | `POST` | `/api/preautorizaciones/evaluar` | **El agente**, en streaming (SSE) |
 | `POST` | `/api/preautorizaciones/reglas` | Solo el motor de reglas, sin IA |
 | `GET` | `/api/preautorizaciones` | Historial de dictámenes emitidos |
