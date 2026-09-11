@@ -2,11 +2,16 @@ import { apiFetch } from './http';
 import type {
   Informe,
   InformeDto,
+  InformeEntradaDto,
   NivelPlan,
   Poliza,
   PolizaDto,
+  PolizaEntradaDto,
   Procedimiento,
   ProcedimientoDto,
+  RespuestaEscritura,
+  RespuestaInformeDto,
+  RespuestaPolizaDto,
 } from '@/types/api';
 
 const aPoliza = (dto: PolizaDto): Poliza => ({
@@ -64,4 +69,67 @@ export async function listarInformes(): Promise<Informe[]> {
 
 export async function listarProcedimientos(): Promise<Procedimiento[]> {
   return (await apiFetch<ProcedimientoDto[]>('/procedimientos')).map(aProcedimiento);
+}
+
+// ---------------------------------------------------------------- escritura
+//
+// Los DTO de entrada son los que ya habla la API, asi que no hay un modelo de
+// dominio propio para escribir: el formulario produce directamente esa forma.
+// Traducirla a camelCase para volver a traducirla al enviar solo añadiria dos
+// sitios mas donde equivocarse.
+
+export async function obtenerPoliza(numero: string): Promise<Poliza> {
+  return aPoliza(await apiFetch<PolizaDto>(`/polizas/${encodeURIComponent(numero)}`));
+}
+
+export async function obtenerInforme(codigo: string): Promise<Informe> {
+  return aInforme(await apiFetch<InformeDto>(`/informes/${encodeURIComponent(codigo)}`));
+}
+
+function aRespuestaPoliza(dto: RespuestaPolizaDto): RespuestaEscritura<Poliza> {
+  return { registro: aPoliza(dto.poliza), notionUrl: dto.notion_url, avisos: dto.avisos };
+}
+
+function aRespuestaInforme(dto: RespuestaInformeDto): RespuestaEscritura<Informe> {
+  return { registro: aInforme(dto.informe), notionUrl: dto.notion_url, avisos: dto.avisos };
+}
+
+export async function crearPoliza(
+  entrada: PolizaEntradaDto & { numero?: string }
+): Promise<RespuestaEscritura<Poliza>> {
+  return aRespuestaPoliza(
+    await apiFetch<RespuestaPolizaDto>('/polizas', { method: 'POST', body: entrada })
+  );
+}
+
+export async function actualizarPoliza(
+  numero: string,
+  entrada: PolizaEntradaDto
+): Promise<RespuestaEscritura<Poliza>> {
+  return aRespuestaPoliza(
+    await apiFetch<RespuestaPolizaDto>(`/polizas/${encodeURIComponent(numero)}`, {
+      method: 'PUT',
+      body: entrada,
+    })
+  );
+}
+
+export async function crearInforme(
+  entrada: InformeEntradaDto & { codigo?: string }
+): Promise<RespuestaEscritura<Informe>> {
+  return aRespuestaInforme(
+    await apiFetch<RespuestaInformeDto>('/informes', { method: 'POST', body: entrada })
+  );
+}
+
+export async function actualizarInforme(
+  codigo: string,
+  entrada: InformeEntradaDto
+): Promise<RespuestaEscritura<Informe>> {
+  return aRespuestaInforme(
+    await apiFetch<RespuestaInformeDto>(`/informes/${encodeURIComponent(codigo)}`, {
+      method: 'PUT',
+      body: entrada,
+    })
+  );
 }

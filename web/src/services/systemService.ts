@@ -20,6 +20,8 @@ export async function getHealth(): Promise<HealthCheck> {
     esfuerzo: dto.esfuerzo,
     origenDatos: dto.origen_datos,
     notionHabilitado: dto.notion_habilitado,
+    notionError: dto.notion_error,
+    escrituraHabilitada: dto.escritura_habilitada,
     latencyMs: Math.round(performance.now() - inicio),
   };
 }
