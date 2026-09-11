@@ -9,8 +9,44 @@ paga cada parte y, si falta algo, exactamente qué falta.
 
 - **Aplicación:** https://preauth.juank.tech
 - **API:** https://preauth.juank.tech/api/docs
-- **Datos:** cuatro bases de datos de Notion (Pólizas, Informes Médicos, Catálogo de
-  Procedimientos y Pre-autorizaciones)
+- **Datos:** cuatro bases de datos de Notion (ver abajo)
+
+---
+
+## Los datos viven en Notion
+
+Las cuatro bases que pide el enunciado, con el agente leyendo de las tres primeras
+y escribiendo en la cuarta:
+
+| Base | Qué guarda |
+| --- | --- |
+| **Pólizas** | Lo que la aseguradora sabe del asegurado: plan, vigencia, deducible, coaseguro, tope anual y preexistencias declaradas |
+| **Informes Médicos** | Lo que envía el hospital. El relato clínico va en el **cuerpo** de la página, no en una columna: `rich_text` está limitado a 2000 caracteres y un informe se acerca demasiado |
+| **Catálogo de Procedimientos** | La regla publicada de antemano: carencia y cobertura por plan, documentos exigidos y exclusiones |
+| **Pre-autorizaciones** | La salida. El agente escribe aquí cada dictamen — veredicto, códigos, desglose, y en el cuerpo la carta al paciente y la justificación técnica |
+
+Esa cuarta base es la que cierra el ciclo: el informe y la póliza **entran** desde
+Notion, el agente resuelve, y la resolución **vuelve** a Notion. Un dictamen real
+emitido por el agente queda así:
+
+```
+Folio                  PA-2026-0036          Veredicto   APROBADO
+CPT / CIE-10           44970 / K35.80        ← extraídos de la prosa del informe
+Monto cotizado         B/. 3,900.00
+Cubre la aseguradora   B/. 1,764.00
+A cargo del paciente   B/. 2,136.00
+```
+
+Y en el cuerpo de esa misma página, la justificación que escribió el agente:
+
+> Carencia exigida: 90 días; el asegurado registra 57 días de afiliación […] por lo
+> que normalmente no cumpliría la carencia (faltarían 33 días, habilitación teórica
+> 13/10/2026); sin embargo, al tratarse de atención de emergencia declarada y
+> confirmada clínicamente, la carencia queda exonerada.
+
+Nota técnica: desde la versión `2025-09-03` de la API de Notion, `databases.query`
+ya no existe — las consultas van a `/v1/data_sources/{id}/query`, y la aplicación
+descubre el `data_source_id` de cada base y lo cachea.
 
 ---
 
