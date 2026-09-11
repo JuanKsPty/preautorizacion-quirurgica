@@ -34,6 +34,7 @@ from app.dominio.esquemas import (
     Poliza,
     Procedimiento,
 )
+from app.repositorios.escritura import a_multi_select, a_rich_text, parrafos
 from app.repositorios.propiedades import (
     entero,
     fecha,
@@ -50,33 +51,9 @@ logger = logging.getLogger("app.notion")
 # "Preferente" -> "preferente". Al leer aceptamos la etiqueta que se ve en Notion.
 PLAN_DESDE_NOMBRE: dict[str, str] = {v.lower(): k for k, v in NOMBRE_PLAN.items()}
 
-TOPE_BLOQUE = 1900  # margen sobre el limite de 2000 caracteres por bloque
-
 
 def _plan(etiqueta: str) -> str:
     return PLAN_DESDE_NOMBRE.get(etiqueta.strip().lower(), "basico")
-
-
-def _rich(contenido: str) -> list[dict[str, Any]]:
-    return [{"type": "text", "text": {"content": contenido}}]
-
-
-def _parrafos(texto_largo: str) -> list[dict[str, Any]]:
-    """Trocea un texto en bloques de parrafo que respeten el limite de Notion."""
-    bloques: list[dict[str, Any]] = []
-    for parrafo in texto_largo.split("\n\n"):
-        limpio = parrafo.strip()
-        if not limpio:
-            continue
-        for inicio in range(0, len(limpio), TOPE_BLOQUE):
-            bloques.append(
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {"rich_text": _rich(limpio[inicio : inicio + TOPE_BLOQUE])},
-                }
-            )
-    return bloques
 
 
 class NotionRepositorio:
@@ -265,17 +242,17 @@ class NotionRepositorio:
 
         desglose = dictamen.desglose
         propiedades: dict[str, Any] = {
-            "Folio": {"title": _rich(dictamen.folio)},
+            "Folio": {"title": a_rich_text(dictamen.folio)},
             "Veredicto": {"select": {"name": dictamen.veredicto}},
-            "Póliza": {"rich_text": _rich(dictamen.numero_poliza)},
-            "Informe": {"rich_text": _rich(dictamen.codigo_informe)},
-            "Paciente": {"rich_text": _rich(dictamen.paciente)},
-            "CPT": {"rich_text": _rich(dictamen.cpt_identificado or "")},
-            "Procedimiento": {"rich_text": _rich(dictamen.procedimiento_identificado or "")},
-            "CIE-10": {"rich_text": _rich(dictamen.cie10_identificado or "")},
-            "Documentos Faltantes": {
-                "multi_select": [{"name": d[:100]} for d in dictamen.documentos_faltantes]
-            },
+            "Póliza": {"rich_text": a_rich_text(dictamen.numero_poliza)},
+            "Informe": {"rich_text": a_rich_text(dictamen.codigo_informe)},
+            "Paciente": {"rich_text": a_rich_text(dictamen.paciente)},
+            "CPT": {"rich_text": a_rich_text(dictamen.cpt_identificado or "")},
+            "Procedimiento": {"rich_text": a_rich_text(dictamen.procedimiento_identificado or "")},
+            "CIE-10": {"rich_text": a_rich_text(dictamen.cie10_identificado or "")},
+            # `opciones` quita las comas: Notion devuelve 400 si una opcion
+            # lleva una, y un nombre de documento puede traerla.
+            "Documentos Faltantes": {"multi_select": a_multi_select(dictamen.documentos_faltantes)},
             "Evaluado en": {"date": {"start": datetime.now(UTC).isoformat()}},
         }
         if desglose is not None:
@@ -289,15 +266,15 @@ class NotionRepositorio:
             {
                 "object": "block",
                 "type": "heading_2",
-                "heading_2": {"rich_text": _rich("Resolución para el paciente")},
+                "heading_2": {"rich_text": a_rich_text("Resolución para el paciente")},
             },
-            *_parrafos(dictamen.carta_paciente),
+            *parrafos(dictamen.carta_paciente),
             {
                 "object": "block",
                 "type": "heading_2",
-                "heading_2": {"rich_text": _rich("Justificación técnica")},
+                "heading_2": {"rich_text": a_rich_text("Justificación técnica")},
             },
-            *_parrafos(dictamen.justificacion_tecnica),
+            *parrafos(dictamen.justificacion_tecnica),
         ]
 
         data_source_id = await self._data_source(settings.notion_db_preautorizaciones)
