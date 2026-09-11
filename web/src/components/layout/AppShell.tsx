@@ -17,14 +17,16 @@ export function AppShell() {
       <GlowHorizonLayer />
       <Sidebar />
 
-      {/* La columna ocupa la altura de la pantalla como minimo, asi el pie
-          queda abajo del todo aunque la pagina tenga poco contenido. */}
-      <div className="flex min-h-dvh flex-col lg:pl-[260px]">
+      {/* Marco de alto fijo: lo que sobra scrollea dentro de main, no en la
+          ventana. Asi una pagina puede repartirse un alto conocido entre sus
+          secciones (min-h-0 flex-1) en vez de que el documento crezca. */}
+      <div className="flex h-dvh flex-col overflow-hidden lg:pl-[260px]">
         <BarraMovil />
 
-        {/* flex para que una pagina pueda pedir el alto disponible con h-full
-            y repartirlo entre sus secciones. */}
-        <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 pt-9 pb-5 sm:px-6 lg:px-10">
+        {/* min-h-0 deja que flex-1 calcule un alto real (no "auto"), asi el
+            scroll pasa aqui adentro y una pagina puede pedir el resto con
+            flex-1 min-h-0 y repartirlo entre sus secciones. */}
+        <main className="scroll-fino mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col overflow-y-auto px-4 pt-9 pb-5 sm:px-6 lg:px-10">
           <Outlet />
         </main>
 
