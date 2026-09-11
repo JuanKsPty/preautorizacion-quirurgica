@@ -223,13 +223,17 @@ export function EvaluarPage() {
                         <p className="text-xs text-muted-foreground">
                           Relato clínico en texto libre
                         </p>
-                        {/* pr mas grande que el resto del padding: la barra de
-                            scroll cae dentro de ese hueco, en vez de pegada a
-                            la esquina redondeada de la caja. La caja misma
-                            mide igual que sus hermanas (documentos, datos). */}
-                        <p className="scroll-fino min-h-24 flex-1 overflow-y-auto rounded-lg bg-background py-3 pr-12 pl-3 text-sm whitespace-pre-wrap">
-                          {seleccionado.texto}
-                        </p>
+                        {/* El padding no aparta la barra de scroll de su propio
+                            borde (solo mueve el texto: la barra se pinta
+                            igual, pegada al borde). Para separarla de verdad
+                            hace falta que lo que hace scroll sea mas angosto
+                            que la caja, con un carril en blanco al lado. */}
+                        <div className="flex min-h-24 flex-1 rounded-lg bg-background">
+                          <p className="scroll-fino min-w-0 flex-1 overflow-y-auto py-3 pr-2 pl-3 text-sm whitespace-pre-wrap">
+                            {seleccionado.texto}
+                          </p>
+                          <div className="w-5 shrink-0" aria-hidden />
+                        </div>
                       </div>
                     </div>
                   ) : (

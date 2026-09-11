@@ -165,6 +165,13 @@
     }
   html {
     @apply font-sans;
+    /* Sin esto, el navegador dibuja los controles nativos (el desplegable de
+       <select>, la barra de scroll del sistema) siempre en claro, aunque la
+       pagina este en oscuro: el texto queda blanco sobre un menu blanco. */
+    color-scheme: light;
+    }
+  html.dark {
+    color-scheme: dark;
     }
 }
 
