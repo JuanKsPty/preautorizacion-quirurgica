@@ -77,7 +77,9 @@ export function PanelPage() {
   const hayCasos = metricas.total > 0;
 
   return (
-    <div className="space-y-4">
+    // Columna a pantalla completa: las filas de tarjetas crecen para repartirse
+    // el alto sobrante en vez de amontonarse arriba y dejar hueco abajo.
+    <div className="flex flex-1 flex-col gap-4">
       <section className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">Resumen operativo</h1>
         <div className="flex flex-wrap gap-2">
@@ -92,7 +94,7 @@ export function PanelPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Metrica
           icono={<FileTextIcon className="size-4" />}
           etiqueta="Casos resueltos"
@@ -123,16 +125,16 @@ export function PanelPage() {
         />
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-5">
+      <section className="grid flex-1 gap-5 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Reparto de veredictos</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-1 flex-col">
             {dictamenes.isPending && <Skeleton className="h-40 w-full" />}
             {dictamenes.data && !hayCasos && <SinDatos />}
             {hayCasos && (
-              <ul className="space-y-2.5">
+              <ul className="flex flex-1 flex-col justify-between gap-3">
                 {metricas.reparto.map(({ veredicto, cantidad }) => {
                   const porcentaje = (cantidad / metricas.total) * 100;
                   const Icono = ICONO[veredicto];
@@ -218,23 +220,23 @@ export function PanelPage() {
         </Card>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-3">
+      <section className="grid flex-1 gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Cómo resuelve un caso</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ol className="grid items-stretch gap-4 sm:grid-cols-3">
+          <CardContent className="flex flex-1 flex-col">
+            <ol className="grid flex-1 items-stretch gap-4 sm:grid-cols-3">
               <Paso
                 numero={1}
                 titulo="Lee el informe"
-                detalle="Prosa médica en texto libre."
+                detalle="El médico escribe en prosa; el agente extrae diagnóstico, CIE-10 y urgencia."
                 cifra={informes.data ? `${informes.data.length} informes` : undefined}
               />
               <Paso
                 numero={2}
                 titulo="Lo mapea al catálogo"
-                detalle="Código CPT, carencia y cobertura."
+                detalle="Pasa a un código CPT con su carencia, cobertura y documentos exigidos."
                 cifra={
                   procedimientos.data ? `${procedimientos.data.length} procedimientos` : undefined
                 }
@@ -242,7 +244,7 @@ export function PanelPage() {
               <Paso
                 numero={3}
                 titulo="Aplica las condiciones"
-                detalle="El veredicto sale de las reglas, no del modelo."
+                detalle="El servidor calcula el reparto del costo. El veredicto sale de las reglas, no del modelo."
                 cifra={dictamenes.data ? `${dictamenes.data.length} dictámenes` : undefined}
               />
             </ol>
@@ -253,7 +255,7 @@ export function PanelPage() {
           <CardHeader>
             <CardTitle>Estado del sistema</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="flex flex-1 flex-col justify-between gap-3 text-sm">
             {salud.isPending && <Skeleton className="h-24 w-full" />}
             {salud.isError && <p className="text-rechazo">La API no responde.</p>}
             {salud.data && (
